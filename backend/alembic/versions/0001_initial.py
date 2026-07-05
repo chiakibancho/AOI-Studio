@@ -56,33 +56,7 @@ def upgrade() -> None:
     op.create_index("ix_users_email", "users", ["email"], unique=True)
     op.create_index("ix_users_organization_id", "users", ["organization_id"])
 
-    # video_type enum
-    videotype_enum = sa.Enum(
-        "brand",
-        "corporate",
-        "recruitment",
-        "sns_ad",
-        "youtube",
-        "short",
-        "product_pr",
-        name="videotype",
-    )
-    videotype_enum.create(op.get_bind())
-
-    # project_status enum
-    projectstatus_enum = sa.Enum(
-        "setup",
-        "music",
-        "structure",
-        "storyboard",
-        "shooting",
-        "upload",
-        "export",
-        name="projectstatus",
-    )
-    projectstatus_enum.create(op.get_bind())
-
-    # projects
+    # projects (enum types are created automatically by op.create_table)
     op.create_table(
         "projects",
         sa.Column("id", sa.String(36), primary_key=True, nullable=False),
@@ -100,7 +74,6 @@ def upgrade() -> None:
                 "short",
                 "product_pr",
                 name="videotype",
-                create_type=False,
             ),
             nullable=False,
         ),
@@ -115,7 +88,6 @@ def upgrade() -> None:
                 "upload",
                 "export",
                 name="projectstatus",
-                create_type=False,
             ),
             nullable=False,
             server_default="setup",
