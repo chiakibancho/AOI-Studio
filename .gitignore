@@ -68,6 +68,7 @@ logs/
 *.pt
 *.pth
 models/
+!backend/app/models/
 checkpoints/
 
 # Media uploads (local dev)
