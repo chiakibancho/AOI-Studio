@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -17,7 +17,7 @@ class SceneItem(BaseModel):
 class StructureResponse(BaseModel):
     id: str
     project_id: str
-    scenes: list[Any]
+    scenes: list[SceneItem]
     rationale: str
     total_duration_sec: int
     version: int
