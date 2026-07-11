@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.models.structure import StructureStatus
+
 
 class SceneItem(BaseModel):
     number: int
@@ -21,6 +23,8 @@ class StructureResponse(BaseModel):
     rationale: str
     total_duration_sec: int
     version: int
+    status: StructureStatus
+    error_message: Optional[str]
     approved_at: Optional[datetime]
     generated_at: datetime
 

@@ -99,6 +99,7 @@ async def generate_structure(project, spec) -> dict:
             model="claude-sonnet-4-6",
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
+            timeout=60,
         )
     except anthropic.APIError as e:
         raise HTTPException(

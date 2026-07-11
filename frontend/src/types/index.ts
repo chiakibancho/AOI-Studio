@@ -81,6 +81,8 @@ export interface SceneItem {
   notes: string
 }
 
+export type StructureStatus = 'pending' | 'completed' | 'failed'
+
 export interface Structure {
   id: string
   project_id: string
@@ -88,6 +90,8 @@ export interface Structure {
   rationale: string
   total_duration_sec: number
   version: number
+  status: StructureStatus
+  error_message: string | null
   approved_at: string | null
   generated_at: string
 }

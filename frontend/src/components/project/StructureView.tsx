@@ -21,6 +21,8 @@ export default function StructureView({
   isApproving,
 }: StructureViewProps) {
   const isApproved = structure.approved_at !== null
+  const isPending = structure.status === 'pending'
+  const isFailed = structure.status === 'failed'
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,9 +33,11 @@ export default function StructureView({
           <span className="px-2 py-0.5 rounded-md bg-surface border border-border text-xs text-text-secondary">
             v{structure.version}
           </span>
-          <span className="text-sm text-text-secondary">
-            合計 {structure.total_duration_sec}秒
-          </span>
+          {!isPending && (
+            <span className="text-sm text-text-secondary">
+              合計 {structure.total_duration_sec}秒
+            </span>
+          )}
         </div>
         {isApproved && (
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-xs font-medium text-green-400">
@@ -45,57 +49,78 @@ export default function StructureView({
         )}
       </div>
 
-      {/* Rationale */}
-      <div className="rounded-xl bg-surface border border-border p-5">
-        <p className="text-xs font-medium text-text-secondary mb-2 uppercase tracking-wider">
-          構成の意図
-        </p>
-        <p className="text-sm text-text-primary leading-relaxed">{structure.rationale}</p>
-      </div>
+      {/* Pending state */}
+      {isPending && (
+        <div className="rounded-xl bg-surface border border-border p-8 flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+          <p className="text-sm text-text-secondary">AIが構成を生成しています...</p>
+        </div>
+      )}
 
-      {/* Scene list */}
-      <div className="flex flex-col gap-4">
-        {structure.scenes.map((scene) => (
-          <div
-            key={scene.number}
-            className="rounded-xl border border-border bg-surface p-5 flex flex-col gap-3"
-          >
-            {/* Scene header */}
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-accent flex items-center justify-center">
-                <span className="text-xs font-bold text-white">{scene.number}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-text-primary text-sm">{scene.title}</span>
-                  <span className="text-xs text-text-secondary">{scene.duration_sec}s</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="px-2 py-0.5 rounded bg-background border border-border text-xs text-text-secondary">
-                    {scene.shot_type}
-                  </span>
-                  <span className="text-xs text-text-secondary">{scene.mood}</span>
-                </div>
-              </div>
-            </div>
+      {/* Failed state */}
+      {isFailed && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3">
+          <p className="text-sm text-red-400">
+            構成の生成に失敗しました{structure.error_message ? `: ${structure.error_message}` : ''}
+          </p>
+        </div>
+      )}
 
-            {/* Description */}
-            <p className="text-sm text-text-primary leading-relaxed pl-10">
-              {scene.description}
+      {!isPending && !isFailed && (
+        <>
+          {/* Rationale */}
+          <div className="rounded-xl bg-surface border border-border p-5">
+            <p className="text-xs font-medium text-text-secondary mb-2 uppercase tracking-wider">
+              構成の意図
             </p>
-
-            {/* Notes */}
-            {scene.notes && (
-              <div className="pl-10">
-                <div className="rounded-lg bg-background px-3 py-2">
-                  <span className="text-xs font-medium text-text-secondary">メモ: </span>
-                  <span className="text-xs text-text-secondary">{scene.notes}</span>
-                </div>
-              </div>
-            )}
+            <p className="text-sm text-text-primary leading-relaxed">{structure.rationale}</p>
           </div>
-        ))}
-      </div>
+
+          {/* Scene list */}
+          <div className="flex flex-col gap-4">
+            {structure.scenes.map((scene) => (
+              <div
+                key={scene.number}
+                className="rounded-xl border border-border bg-surface p-5 flex flex-col gap-3"
+              >
+                {/* Scene header */}
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-accent flex items-center justify-center">
+                    <span className="text-xs font-bold text-white">{scene.number}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-text-primary text-sm">{scene.title}</span>
+                      <span className="text-xs text-text-secondary">{scene.duration_sec}s</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="px-2 py-0.5 rounded bg-background border border-border text-xs text-text-secondary">
+                        {scene.shot_type}
+                      </span>
+                      <span className="text-xs text-text-secondary">{scene.mood}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <p className="text-sm text-text-primary leading-relaxed pl-10">
+                  {scene.description}
+                </p>
+
+                {/* Notes */}
+                {scene.notes && (
+                  <div className="pl-10">
+                    <div className="rounded-lg bg-background px-3 py-2">
+                      <span className="text-xs font-medium text-text-secondary">メモ: </span>
+                      <span className="text-xs text-text-secondary">{scene.notes}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Footer actions */}
       <div className="flex items-center justify-end gap-3 pt-2">
@@ -103,11 +128,11 @@ export default function StructureView({
           variant="secondary"
           onClick={onRegenerate}
           isLoading={isRegenerating}
-          disabled={isRegenerating || isApproving}
+          disabled={isRegenerating || isApproving || isPending}
         >
           再生成する
         </Button>
-        {!isApproved && (
+        {!isApproved && !isPending && !isFailed && (
           <Button
             variant="primary"
             onClick={onApprove}

@@ -76,7 +76,7 @@ export default function ProjectDetailPage() {
     enabled: !!token && !!projectId,
   })
 
-  // Fetch structure (404 → null)
+  // Fetch structure (404 → null). Polls every 2s while generation is pending.
   const { data: structure, isLoading: isStructureLoading } = useQuery<Structure | null>({
     queryKey: ['project-structure', projectId],
     queryFn: async () => {
@@ -91,6 +91,7 @@ export default function ProjectDetailPage() {
       }
     },
     enabled: !!token && !!projectId,
+    refetchInterval: (query) => (query.state.data?.status === 'pending' ? 2000 : false),
   })
 
   // Generate structure mutation
@@ -106,6 +107,8 @@ export default function ProjectDetailPage() {
     onError: (err) => {
       if (axios.isAxiosError(err) && err.response?.status === 503) {
         setGenerateError('AI APIキーが設定されていません。管理者にお問い合わせください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setGenerateError('既に生成処理が進行中です。しばらくお待ちください。')
       } else {
         setGenerateError('構成の生成に失敗しました。もう一度お試しください。')
       }
@@ -324,7 +327,7 @@ export default function ProjectDetailPage() {
                       structure={structure}
                       onRegenerate={handleRegenerate}
                       onApprove={handleApprove}
-                      isRegenerating={generateMutation.isPending}
+                      isRegenerating={generateMutation.isPending || structure.status === 'pending'}
                       isApproving={approveMutation.isPending}
                     />
                   </Card>
