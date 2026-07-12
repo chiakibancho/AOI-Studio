@@ -177,10 +177,12 @@ export default function ProjectDetailPage() {
     },
   })
 
-  // Approve structure mutation
-  const approveMutation = useMutation<void, Error>({
-    mutationFn: async () => {
-      await api.post(`/api/v1/projects/${projectId}/structure/approve`)
+  // Approve structure mutation — picks one of the (up to 3) generated options
+  const approveMutation = useMutation<void, Error, number>({
+    mutationFn: async (optionIndex: number) => {
+      await api.post(`/api/v1/projects/${projectId}/structure/approve`, null, {
+        params: { option_index: optionIndex },
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] })
@@ -217,8 +219,8 @@ export default function ProjectDetailPage() {
     generateMutation.mutate()
   }
 
-  function handleApprove() {
-    approveMutation.mutate()
+  function handleApprove(optionIndex: number) {
+    approveMutation.mutate(optionIndex)
   }
 
   if (!token) return null

@@ -1,15 +1,113 @@
 'use client'
 
-import type { Structure } from '@/types'
+import { useEffect, useState } from 'react'
+import type { SceneItem, Structure, StructureOption } from '@/types'
 import Button from '@/components/ui/Button'
 
 interface StructureViewProps {
   projectId: string
   structure: Structure
   onRegenerate: () => void
-  onApprove: () => void
+  onApprove: (optionIndex: number) => void
   isRegenerating: boolean
   isApproving: boolean
+}
+
+function SceneCard({ scene }: { scene: SceneItem }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-5 flex flex-col gap-3">
+      {/* Scene header */}
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-accent flex items-center justify-center">
+          <span className="text-xs font-bold text-white">{scene.number}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-text-primary text-sm">{scene.title}</span>
+            <span className="text-xs text-text-secondary">{scene.duration_sec}s</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <span className="px-2 py-0.5 rounded bg-background border border-border text-xs text-text-secondary">
+              {scene.shot_type}
+            </span>
+            <span className="text-xs text-text-secondary">{scene.mood}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Description */}
+      <p className="text-sm text-text-primary leading-relaxed pl-10">{scene.description}</p>
+
+      {/* Notes */}
+      {scene.notes && (
+        <div className="pl-10">
+          <div className="rounded-lg bg-background px-3 py-2">
+            <span className="text-xs font-medium text-text-secondary">メモ: </span>
+            <span className="text-xs text-text-secondary">{scene.notes}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OptionCard({
+  index,
+  option,
+  isRecommended,
+  onSelect,
+  isSelecting,
+  disabled,
+}: {
+  index: number
+  option: StructureOption
+  isRecommended: boolean
+  onSelect: () => void
+  isSelecting: boolean
+  disabled: boolean
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-5 flex flex-col gap-4 ${
+        isRecommended ? 'border-accent ring-1 ring-accent/30' : 'border-border'
+      }`}
+    >
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-text-primary">案{index + 1}</span>
+          <span className="text-xs text-text-secondary">合計 {option.total_duration_sec}秒</span>
+        </div>
+        {isRecommended && (
+          <span className="px-2 py-0.5 rounded-full bg-accent text-white text-xs font-medium">
+            おすすめ
+          </span>
+        )}
+      </div>
+
+      <div className="rounded-lg bg-background border border-border p-4">
+        <p className="text-xs font-medium text-text-secondary mb-2 uppercase tracking-wider">
+          構成の意図
+        </p>
+        <p className="text-sm text-text-primary leading-relaxed">{option.rationale}</p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {option.scenes.map((scene) => (
+          <SceneCard key={scene.number} scene={scene} />
+        ))}
+      </div>
+
+      <Button
+        variant="primary"
+        onClick={onSelect}
+        isLoading={isSelecting}
+        disabled={disabled}
+        className="w-full justify-center"
+      >
+        この案を選ぶ
+      </Button>
+    </div>
+  )
 }
 
 export default function StructureView({
@@ -23,6 +121,20 @@ export default function StructureView({
   const isApproved = structure.approved_at !== null
   const isPending = structure.status === 'pending'
   const isFailed = structure.status === 'failed'
+  const showOptions = !isApproved && !isPending && !isFailed && structure.options.length > 0
+
+  const [pendingIndex, setPendingIndex] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!isApproving) {
+      setPendingIndex(null)
+    }
+  }, [isApproving])
+
+  function handleSelectOption(index: number) {
+    setPendingIndex(index)
+    onApprove(index)
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -33,7 +145,7 @@ export default function StructureView({
           <span className="px-2 py-0.5 rounded-md bg-surface border border-border text-xs text-text-secondary">
             v{structure.version}
           </span>
-          {!isPending && (
+          {!isPending && !showOptions && (
             <span className="text-sm text-text-secondary">
               合計 {structure.total_duration_sec}秒
             </span>
@@ -66,7 +178,25 @@ export default function StructureView({
         </div>
       )}
 
-      {!isPending && !isFailed && (
+      {/* 3-option picker (completed, not yet approved) */}
+      {showOptions && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {structure.options.map((option, index) => (
+            <OptionCard
+              key={index}
+              index={index}
+              option={option}
+              isRecommended={index === 0}
+              onSelect={() => handleSelectOption(index)}
+              isSelecting={isApproving && pendingIndex === index}
+              disabled={isApproving || isRegenerating}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Confirmed single-structure view (approved, or legacy rows with no options) */}
+      {!isPending && !isFailed && !showOptions && (
         <>
           {/* Rationale */}
           <div className="rounded-xl bg-surface border border-border p-5">
@@ -79,44 +209,7 @@ export default function StructureView({
           {/* Scene list */}
           <div className="flex flex-col gap-4">
             {structure.scenes.map((scene) => (
-              <div
-                key={scene.number}
-                className="rounded-xl border border-border bg-surface p-5 flex flex-col gap-3"
-              >
-                {/* Scene header */}
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-accent flex items-center justify-center">
-                    <span className="text-xs font-bold text-white">{scene.number}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-text-primary text-sm">{scene.title}</span>
-                      <span className="text-xs text-text-secondary">{scene.duration_sec}s</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="px-2 py-0.5 rounded bg-background border border-border text-xs text-text-secondary">
-                        {scene.shot_type}
-                      </span>
-                      <span className="text-xs text-text-secondary">{scene.mood}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description */}
-                <p className="text-sm text-text-primary leading-relaxed pl-10">
-                  {scene.description}
-                </p>
-
-                {/* Notes */}
-                {scene.notes && (
-                  <div className="pl-10">
-                    <div className="rounded-lg bg-background px-3 py-2">
-                      <span className="text-xs font-medium text-text-secondary">メモ: </span>
-                      <span className="text-xs text-text-secondary">{scene.notes}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <SceneCard key={scene.number} scene={scene} />
             ))}
           </div>
         </>
@@ -132,10 +225,10 @@ export default function StructureView({
         >
           再生成する
         </Button>
-        {!isApproved && !isPending && !isFailed && (
+        {!isApproved && !isPending && !isFailed && !showOptions && (
           <Button
             variant="primary"
-            onClick={onApprove}
+            onClick={() => onApprove(0)}
             isLoading={isApproving}
             disabled={isRegenerating || isApproving}
           >

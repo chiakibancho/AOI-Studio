@@ -648,7 +648,7 @@
           "phase1"
         ],
         "summary": "Approve Structure",
-        "description": "最新 Structure を承認し、プロジェクト status を 'storyboard' に更新する。",
+        "description": "最新 Structure を承認し、プロジェクト status を 'storyboard' に更新する。\n\n3案(options)が存在する場合は option_index で選んだ案をトップレベルの\nscenes/rationale/total_duration_sec に反映する。省略時は 0（デフォルトプレビュー\nとして生成完了時に既にミラーされている案）が選ばれるため、既存の無パラメータ呼び出しと\n完全に後方互換になる。",
         "operationId": "approve_structure_api_v1_projects__project_id__structure_approve_post",
         "security": [
           {
@@ -663,6 +663,18 @@
             "schema": {
               "type": "string",
               "title": "Project Id"
+            }
+          },
+          {
+            "name": "option_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2,
+              "minimum": 0,
+              "default": 0,
+              "title": "Option Index"
             }
           }
         ],
@@ -1009,6 +1021,32 @@
         ],
         "title": "SpecDraftStatus"
       },
+      "StructureOption": {
+        "properties": {
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/SceneItem"
+            },
+            "type": "array",
+            "title": "Scenes"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "total_duration_sec": {
+            "type": "integer",
+            "title": "Total Duration Sec"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenes",
+          "rationale",
+          "total_duration_sec"
+        ],
+        "title": "StructureOption"
+      },
       "StructureResponse": {
         "properties": {
           "id": {
@@ -1034,6 +1072,13 @@
             "type": "integer",
             "title": "Total Duration Sec"
           },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/StructureOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
           "version": {
             "type": "integer",
             "title": "Version"
@@ -1051,6 +1096,17 @@
               }
             ],
             "title": "Error Message"
+          },
+          "selected_option_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Option Index"
           },
           "approved_at": {
             "anyOf": [
@@ -1077,9 +1133,11 @@
           "scenes",
           "rationale",
           "total_duration_sec",
+          "options",
           "version",
           "status",
           "error_message",
+          "selected_option_index",
           "approved_at",
           "generated_at"
         ],

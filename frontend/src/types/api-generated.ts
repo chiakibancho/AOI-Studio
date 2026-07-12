@@ -244,6 +244,11 @@ export interface paths {
         /**
          * Approve Structure
          * @description 最新 Structure を承認し、プロジェクト status を 'storyboard' に更新する。
+         *
+         *     3案(options)が存在する場合は option_index で選んだ案をトップレベルの
+         *     scenes/rationale/total_duration_sec に反映する。省略時は 0（デフォルトプレビュー
+         *     として生成完了時に既にミラーされている案）が選ばれるため、既存の無パラメータ呼び出しと
+         *     完全に後方互換になる。
          */
         post: operations["approve_structure_api_v1_projects__project_id__structure_approve_post"];
         delete?: never;
@@ -379,6 +384,15 @@ export interface components {
          * @enum {string}
          */
         SpecDraftStatus: "pending" | "completed" | "failed";
+        /** StructureOption */
+        StructureOption: {
+            /** Scenes */
+            scenes: components["schemas"]["SceneItem"][];
+            /** Rationale */
+            rationale: string;
+            /** Total Duration Sec */
+            total_duration_sec: number;
+        };
         /** StructureResponse */
         StructureResponse: {
             /** Id */
@@ -391,11 +405,15 @@ export interface components {
             rationale: string;
             /** Total Duration Sec */
             total_duration_sec: number;
+            /** Options */
+            options: components["schemas"]["StructureOption"][];
             /** Version */
             version: number;
             status: components["schemas"]["StructureStatus"];
             /** Error Message */
             error_message: string | null;
+            /** Selected Option Index */
+            selected_option_index: number | null;
             /** Approved At */
             approved_at: string | null;
             /**
@@ -956,7 +974,9 @@ export interface operations {
     };
     approve_structure_api_v1_projects__project_id__structure_approve_post: {
         parameters: {
-            query?: never;
+            query?: {
+                option_index?: number;
+            };
             header?: never;
             path: {
                 project_id: string;
