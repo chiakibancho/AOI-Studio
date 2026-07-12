@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aoi
+          POSTGRES_PASSWORD: aoi
+          POSTGRES_DB: aoi_studio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aoi -d aoi_studio_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TESTING: "1"
+      DATABASE_URL: postgresql+asyncpg://aoi:aoi@localhost:5432/aoi_studio_test
+      SECRET_KEY: ci-test-secret
+      ANTHROPIC_API_KEY: ci-test-key-not-real
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements-dev.txt
+
+      - run: python -m alembic upgrade head
+
+      - run: python -m pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+
+      - run: npm run test
+
+      - name: Check generated OpenAPI types are up to date
+        run: |
+          npm run gen:types
+          git diff --exit-code src/types/api-generated.ts

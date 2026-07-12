@@ -12,7 +12,7 @@ from app.models.project import Project, ProjectStatus
 from app.models.structure import Structure, StructureStatus
 from app.models.user import User
 from app.models.video_spec import VideoSpec
-from app.schemas.structure import StructureResponse
+from app.schemas.structure import SceneItem, StructureResponse
 from app.schemas.video_spec import VideoSpecCreate, VideoSpecResponse
 from app.services import ai_service
 
@@ -188,7 +188,10 @@ async def run_structure_generation(structure_id: str) -> None:
 
             ai_result = await ai_service.generate_structure(project, spec)
 
-            structure.scenes = ai_result.get("scenes", [])
+            # AIの出力形状をここで検証する。壊れていればここで例外→failedへ。
+            scenes = [SceneItem.model_validate(s).model_dump() for s in ai_result.get("scenes", [])]
+
+            structure.scenes = scenes
             structure.rationale = ai_result.get("rationale", "")
             structure.total_duration_sec = ai_result.get("total_duration_sec", 0)
             structure.status = StructureStatus.completed
