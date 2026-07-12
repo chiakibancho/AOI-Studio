@@ -69,3 +69,4 @@ class Project(Base):
     )
     video_spec: Mapped[Optional["VideoSpec"]] = relationship("VideoSpec", back_populates="project", uselist=False)  # noqa: F821
     structures: Mapped[list["Structure"]] = relationship("Structure", back_populates="project", order_by="Structure.version.desc()")  # noqa: F821
+    spec_drafts: Mapped[list["SpecDraft"]] = relationship("SpecDraft", back_populates="project", order_by="SpecDraft.version.desc()")  # noqa: F821

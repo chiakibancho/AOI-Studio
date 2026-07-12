@@ -3,14 +3,14 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import api from '@/lib/api'
-import type { VideoSpec } from '@/types'
+import type { VideoSpec, SpecFormFields } from '@/types'
 import { MOOD_OPTIONS } from '@/types'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
 interface VideoSpecFormProps {
   projectId: string
-  initialSpec?: VideoSpec | null
+  initialSpec?: SpecFormFields | null
   onSaved: (spec: VideoSpec) => void
 }
 

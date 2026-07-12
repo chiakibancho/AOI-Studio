@@ -16,6 +16,19 @@ VIDEO_TYPE_LABELS: dict[str, str] = {
     "product_pr": "製品PR動画",
 }
 
+MOOD_VALUES: list[str] = [
+    "professional",
+    "casual",
+    "emotional",
+    "energetic",
+    "luxury",
+    "friendly",
+    "serious",
+    "playful",
+]
+
+_SHORT_DURATION_VIDEO_TYPES = {"sns_ad", "short"}
+
 
 def _build_prompt(project, spec) -> str:
     video_type_label = VIDEO_TYPE_LABELS.get(
@@ -93,6 +106,64 @@ async def generate_structure(project, spec) -> dict:
 
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
     prompt = _build_prompt(project, spec)
+
+    try:
+        message = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+            timeout=60,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Claude API エラー: {e}",
+        )
+
+    response_text = message.content[0].text
+    return _parse_json_response(response_text)
+
+
+def _build_spec_prompt(project, raw_input: str) -> str:
+    video_type_value = project.video_type.value if hasattr(project.video_type, "value") else str(project.video_type)
+    video_type_label = VIDEO_TYPE_LABELS.get(video_type_value, video_type_value)
+    default_duration = 60 if video_type_value in _SHORT_DURATION_VIDEO_TYPES else 90
+    mood_values_line = ", ".join(MOOD_VALUES)
+
+    return f"""あなたはプロの映像ディレクターです。以下はユーザーが自由な文章で書いた、作りたい動画についての説明です。この内容を整理し、動画仕様（VideoSpec）として構造化してください。
+
+## プロジェクト情報
+- タイトル: {project.title}
+- 動画タイプ: {video_type_label}
+
+## ユーザーの入力（自然言語）
+{raw_input}
+
+## 出力形式（必ず以下のJSON形式のみで出力してください。説明文は不要です）
+
+{{
+  "duration_sec": 目標尺（秒、整数、5〜3600の範囲。ユーザーが尺を明言していない場合は {default_duration} を使う）,
+  "target_audience": "ターゲット層（文章から読み取れない場合は動画タイプから妥当な内容を推測する）",
+  "message": "伝えたいメッセージ（ユーザーの入力から要約・整理する）",
+  "mood": "雰囲気・トーン。必ず次のいずれか1つの値を英語のまま出力する: {mood_values_line}",
+  "style_notes": "スタイルに関する補足（特に言及がなければ空文字列）",
+  "reference_urls": ["ユーザーが本文中で言及したURLのみを含める配列。最大5件まで。言及がなければ空配列"],
+  "rationale": "ユーザーの入力をこのように解釈した理由・整理の意図（2〜4文）"
+}}
+
+ユーザーの入力に無い情報を大きく創作しないこと。読み取れない項目は、動画タイプや文脈から常識的に推測して埋め、rationale でその推測について触れてください。"""
+
+
+async def analyze_spec(project, raw_input: str) -> dict:
+    """Claude API を使って自然言語の入力から VideoSpec を整理する。"""
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="ANTHROPIC_API_KEY が設定されていません。",
+        )
+
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    prompt = _build_spec_prompt(project, raw_input)
 
     try:
         message = await client.messages.create(

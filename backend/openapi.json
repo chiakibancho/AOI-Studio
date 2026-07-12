@@ -392,6 +392,160 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/spec-draft/generate": {
+      "post": {
+        "tags": [
+          "phase1"
+        ],
+        "summary": "Generate Spec Draft",
+        "description": "自然言語入力から AI による SpecDraft 生成をバックグラウンドで開始する。結果は GET /spec-draft でポーリングする。",
+        "operationId": "generate_spec_draft_api_v1_projects__project_id__spec_draft_generate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpecDraftGenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecDraftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/spec-draft": {
+      "get": {
+        "tags": [
+          "phase1"
+        ],
+        "summary": "Get Spec Draft",
+        "description": "最新の SpecDraft を取得する（version 降順で最初の1件）。なければ 404。",
+        "operationId": "get_spec_draft_api_v1_projects__project_id__spec_draft_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecDraftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/spec-draft/approve": {
+      "post": {
+        "tags": [
+          "phase1"
+        ],
+        "summary": "Approve Spec Draft",
+        "description": "最新 SpecDraft を承認し、その内容で VideoSpec を作成/更新する。",
+        "operationId": "approve_spec_draft_api_v1_projects__project_id__spec_draft_approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoSpecResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/structure/generate": {
       "post": {
         "tags": [
@@ -722,6 +876,138 @@
           "name"
         ],
         "title": "SignupRequest"
+      },
+      "SpecDraftGenerateRequest": {
+        "properties": {
+          "raw_input": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Raw Input"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_input"
+        ],
+        "title": "SpecDraftGenerateRequest"
+      },
+      "SpecDraftResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "raw_input": {
+            "type": "string",
+            "title": "Raw Input"
+          },
+          "duration_sec": {
+            "type": "integer",
+            "title": "Duration Sec"
+          },
+          "target_audience": {
+            "type": "string",
+            "title": "Target Audience"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "mood": {
+            "type": "string",
+            "title": "Mood"
+          },
+          "style_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Notes"
+          },
+          "reference_urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reference Urls"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SpecDraftStatus"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "raw_input",
+          "duration_sec",
+          "target_audience",
+          "message",
+          "mood",
+          "style_notes",
+          "reference_urls",
+          "rationale",
+          "version",
+          "status",
+          "error_message",
+          "approved_at",
+          "generated_at"
+        ],
+        "title": "SpecDraftResponse"
+      },
+      "SpecDraftStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "completed",
+          "failed"
+        ],
+        "title": "SpecDraftStatus"
       },
       "StructureResponse": {
         "properties": {

@@ -7,12 +7,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import type { Project, VideoSpec, Structure } from '@/types'
+import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields } from '@/types'
 import { VIDEO_TYPE_LABELS, PROJECT_STATUS_LABELS } from '@/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import VideoSpecForm from '@/components/project/VideoSpecForm'
 import StructureView from '@/components/project/StructureView'
+import SpecAnalystInput from '@/components/project/SpecAnalystInput'
+import SpecDraftView from '@/components/project/SpecDraftView'
 
 const PHASE_STEPS = [
   { key: 'setup', label: '1. 動画仕様' },
@@ -37,6 +39,11 @@ export default function ProjectDetailPage() {
 
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [specSaved, setSpecSaved] = useState(false)
+  const [specDraftError, setSpecDraftError] = useState<string | null>(null)
+  const [specEntryMode, setSpecEntryMode] = useState<'ai' | 'manual'>('ai')
+  const [manualPrefill, setManualPrefill] = useState<SpecFormFields | null>(null)
+  const [aiInputSeed, setAiInputSeed] = useState('')
+  const [showAiInputOverride, setShowAiInputOverride] = useState(false)
 
   // Auth guard
   useEffect(() => {
@@ -74,6 +81,61 @@ export default function ProjectDetailPage() {
       }
     },
     enabled: !!token && !!projectId,
+  })
+
+  // Fetch spec draft (404 → null). Polls every 2s while analysis is pending.
+  // Moot once a real spec exists, so disabled at that point.
+  const { data: specDraft } = useQuery<SpecDraft | null>({
+    queryKey: ['project-spec-draft', projectId],
+    queryFn: async () => {
+      try {
+        const res = await api.get<SpecDraft>(`/api/v1/projects/${projectId}/spec-draft`)
+        return res.data
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          return null
+        }
+        throw err
+      }
+    },
+    enabled: !!token && !!projectId && !spec,
+    refetchInterval: (query) => (query.state.data?.status === 'pending' ? 2000 : false),
+  })
+
+  // Generate spec draft mutation
+  const generateDraftMutation = useMutation<SpecDraft, Error, string>({
+    mutationFn: async (rawInput) => {
+      const res = await api.post<SpecDraft>(`/api/v1/projects/${projectId}/spec-draft/generate`, {
+        raw_input: rawInput,
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      setSpecDraftError(null)
+      setShowAiInputOverride(false)
+      queryClient.invalidateQueries({ queryKey: ['project-spec-draft', projectId] })
+    },
+    onError: (err) => {
+      if (axios.isAxiosError(err) && err.response?.status === 503) {
+        setSpecDraftError('AI APIキーが設定されていません。管理者にお問い合わせください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setSpecDraftError('既に生成処理が進行中です。しばらくお待ちください。')
+      } else {
+        setSpecDraftError('仕様の分析に失敗しました。もう一度お試しください。')
+      }
+    },
+  })
+
+  // Approve spec draft mutation — writes the real VideoSpec
+  const approveDraftMutation = useMutation<VideoSpec, Error>({
+    mutationFn: async () => {
+      const res = await api.post<VideoSpec>(`/api/v1/projects/${projectId}/spec-draft/approve`)
+      return res.data
+    },
+    onSuccess: (savedSpec) => {
+      queryClient.setQueryData(['project-spec', projectId], savedSpec)
+      setSpecSaved(true)
+    },
   })
 
   // Fetch structure (404 → null). Polls every 2s while generation is pending.
@@ -129,6 +191,25 @@ export default function ProjectDetailPage() {
   function handleSpecSaved(savedSpec: VideoSpec) {
     queryClient.setQueryData(['project-spec', projectId], savedSpec)
     setSpecSaved(true)
+  }
+
+  function handleGenerateDraft(rawInput: string) {
+    setSpecDraftError(null)
+    generateDraftMutation.mutate(rawInput)
+  }
+
+  function handleApproveDraft() {
+    approveDraftMutation.mutate()
+  }
+
+  function handleEditManually(prefill: SpecFormFields | null) {
+    setManualPrefill(prefill)
+    setSpecEntryMode('manual')
+  }
+
+  function handleRestartAiInput(rawInputSeed: string) {
+    setAiInputSeed(rawInputSeed)
+    setShowAiInputOverride(true)
   }
 
   function handleRegenerate() {
@@ -258,14 +339,49 @@ export default function ProjectDetailPage() {
             <div className="flex flex-col gap-6">
               {/* VideoSpec section */}
               {!structure ? (
-                <Card>
-                  <h2 className="text-base font-semibold text-text-primary mb-6">動画仕様の入力</h2>
-                  <VideoSpecForm
-                    projectId={projectId}
-                    initialSpec={spec ?? null}
-                    onSaved={handleSpecSaved}
-                  />
-                </Card>
+                spec || specEntryMode === 'manual' ? (
+                  <Card>
+                    <h2 className="text-base font-semibold text-text-primary mb-6">動画仕様の入力</h2>
+                    <VideoSpecForm
+                      projectId={projectId}
+                      initialSpec={spec ?? manualPrefill}
+                      onSaved={handleSpecSaved}
+                    />
+                  </Card>
+                ) : (
+                  <Card>
+                    <h2 className="text-base font-semibold text-text-primary mb-2">動画仕様をAIに相談する</h2>
+                    <p className="text-sm text-text-secondary mb-6">
+                      作りたい動画のイメージを自由に書いてください。AIが仕様として整理します。
+                    </p>
+                    {specDraft && !showAiInputOverride ? (
+                      <SpecDraftView
+                        draft={specDraft}
+                        onApprove={handleApproveDraft}
+                        onEditManually={() =>
+                          handleEditManually({
+                            duration_sec: specDraft.duration_sec,
+                            target_audience: specDraft.target_audience,
+                            message: specDraft.message,
+                            mood: specDraft.mood,
+                            style_notes: specDraft.style_notes,
+                            reference_urls: specDraft.reference_urls,
+                          })
+                        }
+                        onRestart={handleRestartAiInput}
+                        isApproving={approveDraftMutation.isPending}
+                      />
+                    ) : (
+                      <SpecAnalystInput
+                        initialValue={aiInputSeed}
+                        onSubmit={handleGenerateDraft}
+                        isSubmitting={generateDraftMutation.isPending}
+                        error={specDraftError}
+                        onManualEntry={() => handleEditManually(null)}
+                      />
+                    )}
+                  </Card>
+                )
               ) : (
                 // When structure exists, show spec in collapsed/summary form
                 <Card className="opacity-70">

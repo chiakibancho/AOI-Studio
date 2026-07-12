@@ -3,13 +3,20 @@ import type { components } from './api-generated'
 export type VideoType = components['schemas']['VideoType']
 export type ProjectStatus = components['schemas']['ProjectStatus']
 export type StructureStatus = components['schemas']['StructureStatus']
+export type SpecDraftStatus = components['schemas']['SpecDraftStatus']
 
 export type User = components['schemas']['UserResponse']
 export type Project = components['schemas']['ProjectResponse']
 export type VideoSpec = components['schemas']['VideoSpecResponse']
 export type SceneItem = components['schemas']['SceneItem']
 export type Structure = components['schemas']['StructureResponse']
+export type SpecDraft = components['schemas']['SpecDraftResponse']
 export type AuthResponse = components['schemas']['TokenResponse']
+
+export type SpecFormFields = Pick<
+  VideoSpec,
+  'duration_sec' | 'target_audience' | 'message' | 'mood' | 'style_notes' | 'reference_urls'
+>
 
 export const VIDEO_TYPE_LABELS: Record<VideoType, string> = {
   brand: 'ブランド動画',
