@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from app.models.structure import Structure, StructureStatus
 from app.models.user import User
 from app.models.video_spec import VideoSpec
 from app.schemas.spec_draft import SpecDraftGenerateRequest, SpecDraftResponse
-from app.schemas.structure import SceneItem, StructureResponse
+from app.schemas.structure import StructureOption, StructureResponse
 from app.schemas.video_spec import VideoSpecCreate, VideoSpecResponse
 from app.services import ai_service
 
@@ -359,11 +359,24 @@ async def run_structure_generation(structure_id: str) -> None:
             ai_result = await ai_service.generate_structure(project, spec)
 
             # AIの出力形状をここで検証する。壊れていればここで例外→failedへ。
-            scenes = [SceneItem.model_validate(s).model_dump() for s in ai_result.get("scenes", [])]
+            # オール・オア・ナッシング: options が無い/3件でない/いずれかのscenesが壊れていれば
+            # 生成全体を failed にする（部分的に有効な案だけ残すことはしない）。
+            raw_options = ai_result.get("options")
+            if not isinstance(raw_options, list):
+                raise ValueError("AI応答に options 配列がありません")
+            if len(raw_options) != 3:
+                raise ValueError(
+                    f"AI応答の案の数が不正です（期待: 3, 実際: {len(raw_options)}）"
+                )
+            validated_options = [
+                StructureOption.model_validate(opt).model_dump() for opt in raw_options
+            ]
 
-            structure.scenes = scenes
-            structure.rationale = ai_result.get("rationale", "")
-            structure.total_duration_sec = ai_result.get("total_duration_sec", 0)
+            default_option = validated_options[0]
+            structure.options = validated_options
+            structure.scenes = default_option["scenes"]
+            structure.rationale = default_option["rationale"]
+            structure.total_duration_sec = default_option["total_duration_sec"]
             structure.status = StructureStatus.completed
             structure.generated_at = datetime.now(timezone.utc)
             project.status = ProjectStatus.structure
@@ -406,10 +419,17 @@ async def get_structure(
 @router.post("/structure/approve", response_model=StructureResponse)
 async def approve_structure(
     project_id: str,
+    option_index: int = Query(0, ge=0, le=2),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """最新 Structure を承認し、プロジェクト status を 'storyboard' に更新する。"""
+    """最新 Structure を承認し、プロジェクト status を 'storyboard' に更新する。
+
+    3案(options)が存在する場合は option_index で選んだ案をトップレベルの
+    scenes/rationale/total_duration_sec に反映する。省略時は 0（デフォルトプレビュー
+    として生成完了時に既にミラーされている案）が選ばれるため、既存の無パラメータ呼び出しと
+    完全に後方互換になる。
+    """
     project = await _get_project_for_user(project_id, current_user, db)
 
     result = await db.execute(
@@ -429,6 +449,18 @@ async def approve_structure(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Structure がまだ生成中、または生成に失敗しています。",
         )
+
+    if structure.options:
+        if option_index >= len(structure.options):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無効な案です。",
+            )
+        chosen = structure.options[option_index]
+        structure.scenes = chosen["scenes"]
+        structure.rationale = chosen["rationale"]
+        structure.total_duration_sec = chosen["total_duration_sec"]
+        structure.selected_option_index = option_index
 
     structure.approved_at = datetime.now(timezone.utc)
     project.status = ProjectStatus.storyboard

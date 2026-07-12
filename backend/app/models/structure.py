@@ -28,6 +28,7 @@ class Structure(Base):
     scenes: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
     total_duration_sec: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    options: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[StructureStatus] = mapped_column(
         Enum(StructureStatus, name="structurestatus"),
@@ -35,6 +36,7 @@ class Structure(Base):
         nullable=False,
     )
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    selected_option_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False

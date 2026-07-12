@@ -16,15 +16,23 @@ class SceneItem(BaseModel):
     notes: str
 
 
+class StructureOption(BaseModel):
+    scenes: list[SceneItem]
+    rationale: str
+    total_duration_sec: int
+
+
 class StructureResponse(BaseModel):
     id: str
     project_id: str
     scenes: list[SceneItem]
     rationale: str
     total_duration_sec: int
+    options: list[StructureOption]
     version: int
     status: StructureStatus
     error_message: Optional[str]
+    selected_option_index: Optional[int]
     approved_at: Optional[datetime]
     generated_at: datetime
 
