@@ -1,42 +1,15 @@
-export type VideoType =
-  | 'brand'
-  | 'corporate'
-  | 'recruitment'
-  | 'sns_ad'
-  | 'youtube'
-  | 'short'
-  | 'product_pr'
+import type { components } from './api-generated'
 
-export type ProjectStatus =
-  | 'setup'
-  | 'music'
-  | 'structure'
-  | 'storyboard'
-  | 'shooting'
-  | 'upload'
-  | 'export'
+export type VideoType = components['schemas']['VideoType']
+export type ProjectStatus = components['schemas']['ProjectStatus']
+export type StructureStatus = components['schemas']['StructureStatus']
 
-export interface User {
-  id: string
-  email: string
-  name: string
-  created_at: string
-}
-
-export interface Project {
-  id: string
-  title: string
-  video_type: VideoType
-  status: ProjectStatus
-  created_at: string
-  updated_at: string
-}
-
-export interface AuthResponse {
-  access_token: string
-  token_type: string
-  user: User
-}
+export type User = components['schemas']['UserResponse']
+export type Project = components['schemas']['ProjectResponse']
+export type VideoSpec = components['schemas']['VideoSpecResponse']
+export type SceneItem = components['schemas']['SceneItem']
+export type Structure = components['schemas']['StructureResponse']
+export type AuthResponse = components['schemas']['TokenResponse']
 
 export const VIDEO_TYPE_LABELS: Record<VideoType, string> = {
   brand: 'ブランド動画',
@@ -56,44 +29,6 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   shooting: '撮影',
   upload: 'アップロード',
   export: 'エクスポート',
-}
-
-export interface VideoSpec {
-  id: string
-  project_id: string
-  duration_sec: number
-  target_audience: string
-  message: string
-  mood: string
-  style_notes: string | null
-  reference_urls: string[]
-  created_at: string
-  updated_at: string
-}
-
-export interface SceneItem {
-  number: number
-  title: string
-  duration_sec: number
-  description: string
-  shot_type: string
-  mood: string
-  notes: string
-}
-
-export type StructureStatus = 'pending' | 'completed' | 'failed'
-
-export interface Structure {
-  id: string
-  project_id: string
-  scenes: SceneItem[]
-  rationale: string
-  total_duration_sec: number
-  version: number
-  status: StructureStatus
-  error_message: string | null
-  approved_at: string | null
-  generated_at: string
 }
 
 export const MOOD_OPTIONS = [
