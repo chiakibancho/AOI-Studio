@@ -16,7 +16,9 @@ down_revision: Union[str, None] = "0003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-spec_draft_status = ENUM("pending", "completed", "failed", name="specdraftstatus")
+spec_draft_status = ENUM(
+    "pending", "completed", "failed", name="specdraftstatus", create_type=False
+)
 
 
 def upgrade() -> None:
