@@ -37,6 +37,10 @@ class Structure(Base):
     )
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     selected_option_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    human_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    based_on_structure_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("structures.id"), nullable=True
+    )
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False

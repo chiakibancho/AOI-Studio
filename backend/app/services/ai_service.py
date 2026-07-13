@@ -195,3 +195,84 @@ async def analyze_spec(project, raw_input: str) -> dict:
 
     response_text = message.content[0].text
     return _parse_json_response(response_text)
+
+
+def _build_revision_prompt(project, spec, base_scenes, base_rationale: str, feedback: str) -> str:
+    video_type_label = VIDEO_TYPE_LABELS.get(
+        project.video_type.value if hasattr(project.video_type, "value") else str(project.video_type),
+        str(project.video_type),
+    )
+
+    scenes_lines = "\n".join(
+        f"{s['number']}. {s['title']}（{s['duration_sec']}秒 / {s['shot_type']} / {s['mood']}）: {s['description']}"
+        for s in base_scenes
+    )
+
+    return f"""あなたはプロの映像ディレクターです。以下は既にユーザーが承認した映像構成と、その構成に対するユーザーからの修正指示です。修正指示を反映した改訂版の構成を1つだけ作成してください。
+
+## プロジェクト情報
+- タイトル: {project.title}
+- 動画タイプ: {video_type_label}
+
+## 動画仕様
+- 目標尺: {spec.duration_sec}秒
+- ターゲット層: {spec.target_audience}
+- 伝えたいメッセージ: {spec.message}
+- 雰囲気・トーン: {spec.mood}
+
+## 承認済みの構成（この構成をベースに修正すること。作り直しではなく改訂）
+構成の意図: {base_rationale}
+
+シーン一覧:
+{scenes_lines}
+
+## ユーザーからの修正指示
+{feedback}
+
+## 出力形式（必ず以下のJSON形式のみで出力してください。説明文は不要です。3案ではなく1案のみ）
+
+{{
+  "scenes": [
+    {{
+      "number": 1,
+      "title": "シーン名",
+      "duration_sec": 秒数,
+      "description": "シーンの内容説明（2〜3文）",
+      "shot_type": "カット種別（例: タイトルカード、インタビュー、Bロール、製品クローズアップ）",
+      "mood": "このシーンの雰囲気",
+      "notes": "撮影・編集上の注意点"
+    }}
+  ],
+  "total_duration_sec": 合計秒数,
+  "rationale": "修正指示をどう反映したか、この改訂版の意図（3〜5文）"
+}}
+
+修正指示で言及されていない部分は、元の構成の意図をできるだけ維持してください。"""
+
+
+async def revise_structure(project, spec, base_scenes, base_rationale: str, feedback: str) -> dict:
+    """Claude API を使って、承認済み構成 + 修正指示から改訂版の構成を1件生成する。"""
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="ANTHROPIC_API_KEY が設定されていません。",
+        )
+
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    prompt = _build_revision_prompt(project, spec, base_scenes, base_rationale, feedback)
+
+    try:
+        message = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+            timeout=120,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Claude API エラー: {e}",
+        )
+
+    response_text = message.content[0].text
+    return _parse_json_response(response_text)

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.structure import StructureStatus
 
@@ -22,6 +22,10 @@ class StructureOption(BaseModel):
     total_duration_sec: int
 
 
+class StructureReviseRequest(BaseModel):
+    feedback: str = Field(..., min_length=1, max_length=1000)
+
+
 class StructureResponse(BaseModel):
     id: str
     project_id: str
@@ -33,6 +37,8 @@ class StructureResponse(BaseModel):
     status: StructureStatus
     error_message: Optional[str]
     selected_option_index: Optional[int]
+    human_feedback: Optional[str]
+    based_on_structure_id: Optional[str]
     approved_at: Optional[datetime]
     generated_at: datetime
 

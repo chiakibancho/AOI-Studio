@@ -14,7 +14,7 @@ from app.models.structure import Structure, StructureStatus
 from app.models.user import User
 from app.models.video_spec import VideoSpec
 from app.schemas.spec_draft import SpecDraftGenerateRequest, SpecDraftResponse
-from app.schemas.structure import StructureOption, StructureResponse
+from app.schemas.structure import StructureOption, StructureReviseRequest, StructureResponse
 from app.schemas.video_spec import VideoSpecCreate, VideoSpecResponse
 from app.services import ai_service
 
@@ -76,6 +76,18 @@ async def _upsert_video_spec_fields(
     await db.flush()
     await db.refresh(spec)
     return spec
+
+
+_PROJECT_STATUS_ORDER = list(ProjectStatus)  # 宣言順がフェーズの進行順
+
+
+def _advance_project_status(project: Project, target: ProjectStatus) -> None:
+    """project.status を target に進める。target が現在のフェーズより手前（または同じ）なら何もしない。
+
+    承認後に再生成/改訂しても project.status がフェーズを後退しないようにするためのガード。
+    """
+    if _PROJECT_STATUS_ORDER.index(target) > _PROJECT_STATUS_ORDER.index(project.status):
+        project.status = target
 
 
 # ---------------------------------------------------------------------------
@@ -379,7 +391,7 @@ async def run_structure_generation(structure_id: str) -> None:
             structure.total_duration_sec = default_option["total_duration_sec"]
             structure.status = StructureStatus.completed
             structure.generated_at = datetime.now(timezone.utc)
-            project.status = ProjectStatus.structure
+            _advance_project_status(project, ProjectStatus.structure)
 
             await db.commit()
         except Exception as e:
@@ -463,8 +475,120 @@ async def approve_structure(
         structure.selected_option_index = option_index
 
     structure.approved_at = datetime.now(timezone.utc)
-    project.status = ProjectStatus.storyboard
+    _advance_project_status(project, ProjectStatus.storyboard)
 
     await db.flush()
     await db.refresh(structure)
     return StructureResponse.model_validate(structure)
+
+
+# ---------------------------------------------------------------------------
+# Structure revision endpoints (承認後のフィードバックによる再生成)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/structure/revise", response_model=StructureResponse, status_code=202)
+async def revise_structure(
+    project_id: str,
+    request: StructureReviseRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """承認済みの最新 Structure に対する修正指示から、改訂版（1件）の生成をバックグラウンドで開始する。
+
+    元の3案のうち承認された1案の内容のみを元に改訂する。結果は GET /structure でポーリングする。
+    """
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ANTHROPIC_API_KEY が設定されていません。",
+        )
+
+    project = await _get_project_for_user(project_id, current_user, db)
+
+    result = await db.execute(
+        select(Structure)
+        .where(Structure.project_id == project.id)
+        .order_by(Structure.version.desc())
+        .limit(1)
+    )
+    latest = result.scalar_one_or_none()
+    if latest is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Structure not found",
+        )
+    if latest.status == StructureStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="既に生成処理が進行中です。",
+        )
+    if latest.approved_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="承認済みのStructureがありません。先に案を選んで承認してください。",
+        )
+
+    structure = Structure(
+        project_id=project.id,
+        scenes=[],
+        rationale="",
+        total_duration_sec=0,
+        options=[],
+        version=latest.version + 1,
+        status=StructureStatus.pending,
+        human_feedback=request.feedback,
+        based_on_structure_id=latest.id,
+    )
+    db.add(structure)
+    await db.flush()
+    await db.refresh(structure)
+
+    background_tasks.add_task(run_structure_revision, structure.id)
+
+    return StructureResponse.model_validate(structure)
+
+
+async def run_structure_revision(structure_id: str) -> None:
+    """バックグラウンドで Claude API を呼び、修正指示を反映した改訂版 Structure を生成する。専用の DB セッションを使う。"""
+    async with AsyncSessionLocal() as db:
+        try:
+            structure = await db.get(Structure, structure_id)
+            if structure is None:
+                logger.error("run_structure_revision: structure %s not found", structure_id)
+                return
+
+            project = await db.get(Project, structure.project_id)
+            spec_result = await db.execute(
+                select(VideoSpec).where(VideoSpec.project_id == structure.project_id)
+            )
+            spec = spec_result.scalar_one_or_none()
+
+            base = await db.get(Structure, structure.based_on_structure_id)
+            if base is None:
+                raise ValueError("改訂元の Structure が見つかりません")
+
+            ai_result = await ai_service.revise_structure(
+                project, spec, base.scenes, base.rationale, structure.human_feedback
+            )
+
+            # AIの出力形状をここで検証する。壊れていればここで例外→failedへ。
+            validated = StructureOption.model_validate(ai_result).model_dump()
+
+            structure.scenes = validated["scenes"]
+            structure.rationale = validated["rationale"]
+            structure.total_duration_sec = validated["total_duration_sec"]
+            structure.status = StructureStatus.completed
+            structure.generated_at = datetime.now(timezone.utc)
+            _advance_project_status(project, ProjectStatus.structure)
+
+            await db.commit()
+        except Exception as e:
+            logger.exception("run_structure_revision failed for structure %s", structure_id)
+            await db.rollback()
+            structure = await db.get(Structure, structure_id)
+            if structure is not None:
+                structure.status = StructureStatus.failed
+                structure.error_message = str(e)
+                await db.commit()
