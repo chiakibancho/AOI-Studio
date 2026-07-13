@@ -125,9 +125,9 @@ async def generate_structure(project, spec) -> dict:
     try:
         message = await client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=4096,
+            max_tokens=8192,
             messages=[{"role": "user", "content": prompt}],
-            timeout=60,
+            timeout=120,
         )
     except anthropic.APIError as e:
         raise HTTPException(
@@ -185,7 +185,7 @@ async def analyze_spec(project, raw_input: str) -> dict:
             model="claude-sonnet-4-6",
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
-            timeout=60,
+            timeout=120,
         )
     except anthropic.APIError as e:
         raise HTTPException(
