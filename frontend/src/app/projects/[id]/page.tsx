@@ -38,6 +38,7 @@ export default function ProjectDetailPage() {
   const { token } = useAuthStore()
 
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [reviseError, setReviseError] = useState<string | null>(null)
   const [specSaved, setSpecSaved] = useState(false)
   const [specDraftError, setSpecDraftError] = useState<string | null>(null)
   const [specEntryMode, setSpecEntryMode] = useState<'ai' | 'manual'>('ai')
@@ -190,6 +191,31 @@ export default function ProjectDetailPage() {
     },
   })
 
+  // Revise structure mutation — regenerates a single structure from approved content + feedback
+  const reviseMutation = useMutation<Structure, Error, string>({
+    mutationFn: async (feedback: string) => {
+      const res = await api.post<Structure>(`/api/v1/projects/${projectId}/structure/revise`, {
+        feedback,
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      setReviseError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-structure', projectId] })
+    },
+    onError: (err) => {
+      if (axios.isAxiosError(err) && err.response?.status === 503) {
+        setReviseError('AI APIキーが設定されていません。管理者にお問い合わせください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setReviseError('既に生成処理が進行中です。しばらくお待ちください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 400) {
+        setReviseError('承認済みの構成がありません。先に案を選んで承認してください。')
+      } else {
+        setReviseError('修正の反映に失敗しました。もう一度お試しください。')
+      }
+    },
+  })
+
   function handleSpecSaved(savedSpec: VideoSpec) {
     queryClient.setQueryData(['project-spec', projectId], savedSpec)
     setSpecSaved(true)
@@ -221,6 +247,11 @@ export default function ProjectDetailPage() {
 
   function handleApprove(optionIndex: number) {
     approveMutation.mutate(optionIndex)
+  }
+
+  function handleRevise(feedback: string) {
+    setReviseError(null)
+    reviseMutation.mutate(feedback)
   }
 
   if (!token) return null
@@ -445,8 +476,11 @@ export default function ProjectDetailPage() {
                       structure={structure}
                       onRegenerate={handleRegenerate}
                       onApprove={handleApprove}
+                      onRevise={handleRevise}
                       isRegenerating={generateMutation.isPending || structure.status === 'pending'}
                       isApproving={approveMutation.isPending}
+                      isRevising={reviseMutation.isPending || structure.status === 'pending'}
+                      reviseError={reviseError}
                     />
                   </Card>
                 </div>

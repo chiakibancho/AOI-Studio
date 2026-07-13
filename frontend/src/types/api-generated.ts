@@ -257,6 +257,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/structure/revise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revise Structure
+         * @description 承認済みの最新 Structure に対する修正指示から、改訂版（1件）の生成をバックグラウンドで開始する。
+         *
+         *     元の3案のうち承認された1案の内容のみを元に改訂する。結果は GET /structure でポーリングする。
+         */
+        post: operations["revise_structure_api_v1_projects__project_id__structure_revise_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -414,6 +436,10 @@ export interface components {
             error_message: string | null;
             /** Selected Option Index */
             selected_option_index: number | null;
+            /** Human Feedback */
+            human_feedback: string | null;
+            /** Based On Structure Id */
+            based_on_structure_id: string | null;
             /** Approved At */
             approved_at: string | null;
             /**
@@ -421,6 +447,11 @@ export interface components {
              * Format: date-time
              */
             generated_at: string;
+        };
+        /** StructureReviseRequest */
+        StructureReviseRequest: {
+            /** Feedback */
+            feedback: string;
         };
         /**
          * StructureStatus
@@ -987,6 +1018,41 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StructureResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revise_structure_api_v1_projects__project_id__structure_revise_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StructureReviseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

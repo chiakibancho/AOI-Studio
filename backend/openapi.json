@@ -701,6 +701,64 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{project_id}/structure/revise": {
+      "post": {
+        "tags": [
+          "phase1"
+        ],
+        "summary": "Revise Structure",
+        "description": "承認済みの最新 Structure に対する修正指示から、改訂版（1件）の生成をバックグラウンドで開始する。\n\n元の3案のうち承認された1案の内容のみを元に改訂する。結果は GET /structure でポーリングする。",
+        "operationId": "revise_structure_api_v1_projects__project_id__structure_revise_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StructureReviseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StructureResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1108,6 +1166,28 @@
             ],
             "title": "Selected Option Index"
           },
+          "human_feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Feedback"
+          },
+          "based_on_structure_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Based On Structure Id"
+          },
           "approved_at": {
             "anyOf": [
               {
@@ -1138,10 +1218,27 @@
           "status",
           "error_message",
           "selected_option_index",
+          "human_feedback",
+          "based_on_structure_id",
           "approved_at",
           "generated_at"
         ],
         "title": "StructureResponse"
+      },
+      "StructureReviseRequest": {
+        "properties": {
+          "feedback": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Feedback"
+          }
+        },
+        "type": "object",
+        "required": [
+          "feedback"
+        ],
+        "title": "StructureReviseRequest"
       },
       "StructureStatus": {
         "type": "string",

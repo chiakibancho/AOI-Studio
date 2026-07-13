@@ -24,6 +24,8 @@ const baseStructure: Structure = {
   status: 'completed',
   error_message: null,
   selected_option_index: null,
+  human_feedback: null,
+  based_on_structure_id: null,
   approved_at: null,
   generated_at: '2026-07-12T00:00:00Z',
 }
@@ -76,15 +78,25 @@ const threeOptions: StructureOption[] = [
   },
 ]
 
-function renderView(overrides: Partial<Structure> = {}) {
+function renderView(
+  overrides: Partial<Structure> = {},
+  handlers: {
+    onApprove?: (optionIndex: number) => void
+    onRevise?: (feedback: string) => void
+  } = {},
+  extraProps: { isRevising?: boolean; reviseError?: string | null } = {}
+) {
   return render(
     <StructureView
       projectId="p1"
       structure={{ ...baseStructure, ...overrides }}
       onRegenerate={vi.fn()}
-      onApprove={vi.fn()}
+      onApprove={handlers.onApprove ?? vi.fn()}
+      onRevise={handlers.onRevise ?? vi.fn()}
       isRegenerating={false}
       isApproving={false}
+      isRevising={extraProps.isRevising ?? false}
+      reviseError={extraProps.reviseError ?? null}
     />
   )
 }
@@ -135,16 +147,7 @@ describe('StructureView', () => {
 
   it('calls onApprove with the clicked option index', () => {
     const onApprove = vi.fn()
-    render(
-      <StructureView
-        projectId="p1"
-        structure={{ ...baseStructure, status: 'completed', options: threeOptions, scenes: [] }}
-        onRegenerate={vi.fn()}
-        onApprove={onApprove}
-        isRegenerating={false}
-        isApproving={false}
-      />
-    )
+    renderView({ status: 'completed', options: threeOptions, scenes: [] }, { onApprove })
 
     const buttons = screen.getAllByRole('button', { name: 'この案を選ぶ' })
     fireEvent.click(buttons[2])
@@ -167,5 +170,46 @@ describe('StructureView', () => {
     expect(screen.getByText('Montage')).toBeInTheDocument()
     expect(screen.queryByText('Opening')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'この案を選ぶ' })).not.toBeInTheDocument()
+  })
+
+  it('does not show the revision feedback form when not yet approved', () => {
+    renderView({ status: 'completed' })
+
+    expect(screen.queryByLabelText('修正を依頼する')).not.toBeInTheDocument()
+  })
+
+  it('shows the revision feedback form once approved and submits trimmed text', () => {
+    const onRevise = vi.fn()
+    renderView(
+      { status: 'completed', approved_at: '2026-07-12T01:00:00Z' },
+      { onRevise }
+    )
+
+    const textarea = screen.getByLabelText('修正を依頼する')
+    fireEvent.change(textarea, { target: { value: '  シーン3をもう少し短くして  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'この内容で修正を依頼する' }))
+
+    expect(onRevise).toHaveBeenCalledWith('シーン3をもう少し短くして')
+  })
+
+  it('disables the revision form while a revision is in flight', () => {
+    renderView(
+      { status: 'completed', approved_at: '2026-07-12T01:00:00Z' },
+      {},
+      { isRevising: true }
+    )
+
+    expect(screen.getByLabelText('修正を依頼する')).toBeDisabled()
+  })
+
+  it('shows feedback context when the version is a revision', () => {
+    renderView({
+      status: 'completed',
+      approved_at: '2026-07-12T01:00:00Z',
+      human_feedback: 'シーン3をもう少し短くして',
+    })
+
+    expect(screen.getByText('フィードバックをもとに修正しました')).toBeInTheDocument()
+    expect(screen.getByText('シーン3をもう少し短くして')).toBeInTheDocument()
   })
 })
