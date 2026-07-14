@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import type { SceneItem, Structure, StructureOption } from '@/types'
 import Button from '@/components/ui/Button'
-import RevisionFeedbackForm from '@/components/project/RevisionFeedbackForm'
 
 interface StructureViewProps {
   projectId: string
@@ -119,11 +118,11 @@ export default function StructureView({
   structure,
   onRegenerate,
   onApprove,
-  onRevise,
+  onRevise: _onRevise,
   isRegenerating,
   isApproving,
-  isRevising,
-  reviseError,
+  isRevising: _isRevising,
+  reviseError: _reviseError,
 }: StructureViewProps) {
   const isApproved = structure.approved_at !== null
   const isPending = structure.status === 'pending'
@@ -229,42 +228,32 @@ export default function StructureView({
               <SceneCard key={scene.number} scene={scene} />
             ))}
           </div>
-
-          {/* Request a revision (only once approved) */}
-          {isApproved && (
-            <RevisionFeedbackForm
-              onSubmit={onRevise}
-              isSubmitting={isRevising}
-              disabled={isRegenerating || isApproving}
-              error={reviseError}
-              inputId="structure-revision-feedback"
-              placeholder="例: シーン3をもう少し短くして、製品クローズアップを増やしてほしい"
-            />
-          )}
         </>
       )}
 
-      {/* Footer actions */}
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <Button
-          variant="secondary"
-          onClick={onRegenerate}
-          isLoading={isRegenerating}
-          disabled={isRegenerating || isApproving || isPending || isRevising}
-        >
-          再生成する
-        </Button>
-        {!isApproved && !isPending && !isFailed && !showOptions && (
+      {/* Footer actions — hidden once approved */}
+      {!isApproved && (
+        <div className="flex items-center justify-end gap-3 pt-2">
           <Button
-            variant="primary"
-            onClick={() => onApprove(0)}
-            isLoading={isApproving}
-            disabled={isRegenerating || isApproving}
+            variant="secondary"
+            onClick={onRegenerate}
+            isLoading={isRegenerating}
+            disabled={isRegenerating || isApproving || isPending}
           >
-            この構成で進む
+            再生成する
           </Button>
-        )}
-      </div>
+          {!isPending && !isFailed && !showOptions && (
+            <Button
+              variant="primary"
+              onClick={() => onApprove(0)}
+              isLoading={isApproving}
+              disabled={isRegenerating || isApproving}
+            >
+              この構成で進む
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

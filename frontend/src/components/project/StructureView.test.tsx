@@ -127,11 +127,12 @@ describe('StructureView', () => {
     expect(screen.getByRole('button', { name: 'この構成で進む' })).toBeInTheDocument()
   })
 
-  it('hides the approve button and shows a badge once approved', () => {
+  it('hides the approve/regenerate buttons and shows a badge once approved', () => {
     renderView({ status: 'completed', approved_at: '2026-07-12T01:00:00Z' })
 
     expect(screen.getByText('承認済み')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'この構成で進む' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '再生成する' })).not.toBeInTheDocument()
   })
 
   it('renders 3 option cards with a recommended badge on the first when completed and not approved', () => {
@@ -172,34 +173,12 @@ describe('StructureView', () => {
     expect(screen.queryByRole('button', { name: 'この案を選ぶ' })).not.toBeInTheDocument()
   })
 
-  it('does not show the revision feedback form when not yet approved', () => {
+  it('does not show the revision feedback form regardless of approval state', () => {
     renderView({ status: 'completed' })
-
     expect(screen.queryByLabelText('修正を依頼する')).not.toBeInTheDocument()
-  })
 
-  it('shows the revision feedback form once approved and submits trimmed text', () => {
-    const onRevise = vi.fn()
-    renderView(
-      { status: 'completed', approved_at: '2026-07-12T01:00:00Z' },
-      { onRevise }
-    )
-
-    const textarea = screen.getByLabelText('修正を依頼する')
-    fireEvent.change(textarea, { target: { value: '  シーン3をもう少し短くして  ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'この内容で修正を依頼する' }))
-
-    expect(onRevise).toHaveBeenCalledWith('シーン3をもう少し短くして')
-  })
-
-  it('disables the revision form while a revision is in flight', () => {
-    renderView(
-      { status: 'completed', approved_at: '2026-07-12T01:00:00Z' },
-      {},
-      { isRevising: true }
-    )
-
-    expect(screen.getByLabelText('修正を依頼する')).toBeDisabled()
+    renderView({ status: 'completed', approved_at: '2026-07-12T01:00:00Z' })
+    expect(screen.queryByLabelText('修正を依頼する')).not.toBeInTheDocument()
   })
 
   it('shows feedback context when the version is a revision', () => {
