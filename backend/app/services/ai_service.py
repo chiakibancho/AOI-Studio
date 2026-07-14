@@ -276,3 +276,74 @@ async def revise_structure(project, spec, base_scenes, base_rationale: str, feed
 
     response_text = message.content[0].text
     return _parse_json_response(response_text)
+
+
+def _build_storyboard_prompt(project, spec, structure_scenes) -> str:
+    video_type_label = VIDEO_TYPE_LABELS.get(
+        project.video_type.value if hasattr(project.video_type, "value") else str(project.video_type),
+        str(project.video_type),
+    )
+
+    scenes_lines = "\n".join(
+        f"{s['number']}. {s['title']}（{s['duration_sec']}秒 / {s['shot_type']} / {s['mood']}）: {s['description']}"
+        for s in structure_scenes
+    )
+    scene_numbers = ", ".join(str(s["number"]) for s in structure_scenes)
+
+    return f"""あなたはプロの映像ディレクターです。以下の承認済みの映像構成の各シーンについて、絵コンテ（構図・カメラワーク・テロップ・狙い）を作成してください。
+
+## プロジェクト情報
+- タイトル: {project.title}
+- 動画タイプ: {video_type_label}
+
+## 動画仕様
+- ターゲット層: {spec.target_audience}
+- 伝えたいメッセージ: {spec.message}
+- 雰囲気・トーン: {spec.mood}
+
+## 承認済みの構成（シーン一覧）
+{scenes_lines}
+
+## 出力形式（必ず以下のJSON形式のみで出力してください。説明文は不要です）
+
+{{
+  "scenes": [
+    {{
+      "scene_number": シーン番号（上記の番号のいずれか）,
+      "intent": "このコマの狙い（1〜2文）",
+      "composition": "構図（誰が/何がどう画面内に配置されるか）",
+      "camera_work": "カメラワーク（アングル・動き）",
+      "text_overlay": "テロップ文言。テロップが無いコマは空文字列"
+    }}
+  ]
+}}
+
+scene_number は次の番号と過不足なく一致させること（すべて出力し、それ以外の番号は含めない）: {scene_numbers}"""
+
+
+async def generate_storyboard(project, spec, structure_scenes) -> dict:
+    """Claude API を使って、承認済み構成の各シーンから絵コンテを生成する。"""
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="ANTHROPIC_API_KEY が設定されていません。",
+        )
+
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    prompt = _build_storyboard_prompt(project, spec, structure_scenes)
+
+    try:
+        message = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+            timeout=120,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Claude API エラー: {e}",
+        )
+
+    response_text = message.content[0].text
+    return _parse_json_response(response_text)

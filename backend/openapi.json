@@ -759,6 +759,150 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{project_id}/storyboard/generate": {
+      "post": {
+        "tags": [
+          "phase2"
+        ],
+        "summary": "Generate Storyboard",
+        "description": "承認済みの Structure から絵コンテ生成をバックグラウンドで開始する。結果は GET /storyboard でポーリングする。",
+        "operationId": "generate_storyboard_api_v1_projects__project_id__storyboard_generate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/storyboard": {
+      "get": {
+        "tags": [
+          "phase2"
+        ],
+        "summary": "Get Storyboard",
+        "description": "最新の Storyboard を取得する（version 降順で最初の1件）。なければ 404。",
+        "operationId": "get_storyboard_api_v1_projects__project_id__storyboard_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/storyboard/approve": {
+      "post": {
+        "tags": [
+          "phase2"
+        ],
+        "summary": "Approve Storyboard",
+        "description": "最新 Storyboard を承認し、プロジェクト status を 'shooting' に更新する。",
+        "operationId": "approve_storyboard_api_v1_projects__project_id__storyboard_approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1078,6 +1222,130 @@
           "failed"
         ],
         "title": "SpecDraftStatus"
+      },
+      "StoryboardResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "structure_id": {
+            "type": "string",
+            "title": "Structure Id"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/StoryboardScene"
+            },
+            "type": "array",
+            "title": "Scenes"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StoryboardStatus"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "structure_id",
+          "scenes",
+          "version",
+          "status",
+          "error_message",
+          "approved_at",
+          "generated_at"
+        ],
+        "title": "StoryboardResponse"
+      },
+      "StoryboardScene": {
+        "properties": {
+          "scene_number": {
+            "type": "integer",
+            "title": "Scene Number"
+          },
+          "time_start": {
+            "type": "integer",
+            "title": "Time Start"
+          },
+          "time_end": {
+            "type": "integer",
+            "title": "Time End"
+          },
+          "intent": {
+            "type": "string",
+            "title": "Intent"
+          },
+          "composition": {
+            "type": "string",
+            "title": "Composition"
+          },
+          "camera_work": {
+            "type": "string",
+            "title": "Camera Work"
+          },
+          "text_overlay": {
+            "type": "string",
+            "title": "Text Overlay"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scene_number",
+          "time_start",
+          "time_end",
+          "intent",
+          "composition",
+          "camera_work",
+          "text_overlay"
+        ],
+        "title": "StoryboardScene",
+        "description": "永続化・レスポンス形（AI生成フィールド + バックエンド計算のtime_start/time_end）。"
+      },
+      "StoryboardStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "completed",
+          "failed"
+        ],
+        "title": "StoryboardStatus"
       },
       "StructureOption": {
         "properties": {

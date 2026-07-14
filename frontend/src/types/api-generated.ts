@@ -279,6 +279,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/storyboard/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Storyboard
+         * @description 承認済みの Structure から絵コンテ生成をバックグラウンドで開始する。結果は GET /storyboard でポーリングする。
+         */
+        post: operations["generate_storyboard_api_v1_projects__project_id__storyboard_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/storyboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Storyboard
+         * @description 最新の Storyboard を取得する（version 降順で最初の1件）。なければ 404。
+         */
+        get: operations["get_storyboard_api_v1_projects__project_id__storyboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/storyboard/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Storyboard
+         * @description 最新 Storyboard を承認し、プロジェクト status を 'shooting' に更新する。
+         */
+        post: operations["approve_storyboard_api_v1_projects__project_id__storyboard_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -406,6 +466,54 @@ export interface components {
          * @enum {string}
          */
         SpecDraftStatus: "pending" | "completed" | "failed";
+        /** StoryboardResponse */
+        StoryboardResponse: {
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Structure Id */
+            structure_id: string;
+            /** Scenes */
+            scenes: components["schemas"]["StoryboardScene"][];
+            /** Version */
+            version: number;
+            status: components["schemas"]["StoryboardStatus"];
+            /** Error Message */
+            error_message: string | null;
+            /** Approved At */
+            approved_at: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+        };
+        /**
+         * StoryboardScene
+         * @description 永続化・レスポンス形（AI生成フィールド + バックエンド計算のtime_start/time_end）。
+         */
+        StoryboardScene: {
+            /** Scene Number */
+            scene_number: number;
+            /** Time Start */
+            time_start: number;
+            /** Time End */
+            time_end: number;
+            /** Intent */
+            intent: string;
+            /** Composition */
+            composition: string;
+            /** Camera Work */
+            camera_work: string;
+            /** Text Overlay */
+            text_overlay: string;
+        };
+        /**
+         * StoryboardStatus
+         * @enum {string}
+         */
+        StoryboardStatus: "pending" | "completed" | "failed";
         /** StructureOption */
         StructureOption: {
             /** Scenes */
@@ -1058,6 +1166,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StructureResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_storyboard_api_v1_projects__project_id__storyboard_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_storyboard_api_v1_projects__project_id__storyboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_storyboard_api_v1_projects__project_id__storyboard_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryboardResponse"];
                 };
             };
             /** @description Validation Error */
