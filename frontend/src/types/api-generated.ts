@@ -339,6 +339,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/storyboard/revise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revise Storyboard
+         * @description 承認済みの最新 Storyboard に対する修正指示から、改訂版の生成をバックグラウンドで開始する。
+         *
+         *     結果は GET /storyboard でポーリングする。
+         */
+        post: operations["revise_storyboard_api_v1_projects__project_id__storyboard_revise_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -481,6 +503,10 @@ export interface components {
             status: components["schemas"]["StoryboardStatus"];
             /** Error Message */
             error_message: string | null;
+            /** Human Feedback */
+            human_feedback: string | null;
+            /** Based On Storyboard Id */
+            based_on_storyboard_id: string | null;
             /** Approved At */
             approved_at: string | null;
             /**
@@ -488,6 +514,11 @@ export interface components {
              * Format: date-time
              */
             generated_at: string;
+        };
+        /** StoryboardReviseRequest */
+        StoryboardReviseRequest: {
+            /** Feedback */
+            feedback: string;
         };
         /**
          * StoryboardScene
@@ -1254,6 +1285,41 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revise_storyboard_api_v1_projects__project_id__storyboard_revise_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryboardReviseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

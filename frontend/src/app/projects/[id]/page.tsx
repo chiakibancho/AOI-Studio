@@ -41,6 +41,7 @@ export default function ProjectDetailPage() {
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [reviseError, setReviseError] = useState<string | null>(null)
   const [storyboardError, setStoryboardError] = useState<string | null>(null)
+  const [storyboardReviseError, setStoryboardReviseError] = useState<string | null>(null)
   const [specSaved, setSpecSaved] = useState(false)
   const [specDraftError, setSpecDraftError] = useState<string | null>(null)
   const [specEntryMode, setSpecEntryMode] = useState<'ai' | 'manual'>('ai')
@@ -271,6 +272,31 @@ export default function ProjectDetailPage() {
     },
   })
 
+  // Revise storyboard mutation — regenerates a single storyboard from approved content + feedback
+  const reviseStoryboardMutation = useMutation<Storyboard, Error, string>({
+    mutationFn: async (feedback: string) => {
+      const res = await api.post<Storyboard>(`/api/v1/projects/${projectId}/storyboard/revise`, {
+        feedback,
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      setStoryboardReviseError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-storyboard', projectId] })
+    },
+    onError: (err) => {
+      if (axios.isAxiosError(err) && err.response?.status === 503) {
+        setStoryboardReviseError('AI APIキーが設定されていません。管理者にお問い合わせください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setStoryboardReviseError('既に生成処理が進行中です。しばらくお待ちください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 400) {
+        setStoryboardReviseError('承認済みの絵コンテがありません。先に絵コンテを承認してください。')
+      } else {
+        setStoryboardReviseError('修正の反映に失敗しました。もう一度お試しください。')
+      }
+    },
+  })
+
   function handleSpecSaved(savedSpec: VideoSpec) {
     queryClient.setQueryData(['project-spec', projectId], savedSpec)
     setSpecSaved(true)
@@ -316,6 +342,11 @@ export default function ProjectDetailPage() {
 
   function handleApproveStoryboard() {
     approveStoryboardMutation.mutate()
+  }
+
+  function handleReviseStoryboard(feedback: string) {
+    setStoryboardReviseError(null)
+    reviseStoryboardMutation.mutate(feedback)
   }
 
   if (!token) return null
@@ -590,8 +621,11 @@ export default function ProjectDetailPage() {
                       structure={structure}
                       onRegenerate={handleGenerateStoryboard}
                       onApprove={handleApproveStoryboard}
+                      onRevise={handleReviseStoryboard}
                       isRegenerating={generateStoryboardMutation.isPending || storyboard.status === 'pending'}
                       isApproving={approveStoryboardMutation.isPending}
+                      isRevising={reviseStoryboardMutation.isPending || storyboard.status === 'pending'}
+                      reviseError={storyboardReviseError}
                     />
                   </Card>
                 </div>

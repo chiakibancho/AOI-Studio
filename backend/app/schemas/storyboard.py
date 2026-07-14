@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.storyboard import StoryboardStatus
 
@@ -28,6 +28,10 @@ class StoryboardScene(BaseModel):
     text_overlay: str
 
 
+class StoryboardReviseRequest(BaseModel):
+    feedback: str = Field(..., min_length=1, max_length=1000)
+
+
 class StoryboardResponse(BaseModel):
     id: str
     project_id: str
@@ -36,6 +40,8 @@ class StoryboardResponse(BaseModel):
     version: int
     status: StoryboardStatus
     error_message: Optional[str]
+    human_feedback: Optional[str]
+    based_on_storyboard_id: Optional[str]
     approved_at: Optional[datetime]
     generated_at: datetime
 

@@ -2,6 +2,7 @@
 
 import type { Storyboard, StoryboardScene, Structure } from '@/types'
 import Button from '@/components/ui/Button'
+import RevisionFeedbackForm from '@/components/project/RevisionFeedbackForm'
 
 interface StoryboardViewProps {
   projectId: string
@@ -9,8 +10,11 @@ interface StoryboardViewProps {
   structure: Structure
   onRegenerate: () => void
   onApprove: () => void
+  onRevise: (feedback: string) => void
   isRegenerating: boolean
   isApproving: boolean
+  isRevising: boolean
+  reviseError?: string | null
 }
 
 function formatTime(sec: number): string {
@@ -78,8 +82,11 @@ export default function StoryboardView({
   structure,
   onRegenerate,
   onApprove,
+  onRevise,
   isRegenerating,
   isApproving,
+  isRevising,
+  reviseError,
 }: StoryboardViewProps) {
   const isApproved = storyboard.approved_at !== null
   const isPending = storyboard.status === 'pending'
@@ -122,6 +129,16 @@ export default function StoryboardView({
         </div>
       )}
 
+      {/* Feedback context, when this version is a revision */}
+      {!isPending && !isFailed && storyboard.human_feedback && (
+        <div className="rounded-xl bg-accent/5 border border-accent/20 p-5">
+          <p className="text-xs font-medium text-accent mb-2 uppercase tracking-wider">
+            フィードバックをもとに修正しました
+          </p>
+          <p className="text-sm text-text-primary leading-relaxed">{storyboard.human_feedback}</p>
+        </div>
+      )}
+
       {/* Scene strip (horizontal scroll, per ARCHITECTURE.md's コマ割り表示) */}
       {!isPending && !isFailed && (
         <div className="flex overflow-x-auto gap-4 pb-2">
@@ -138,13 +155,25 @@ export default function StoryboardView({
         </div>
       )}
 
+      {/* Request a revision (only once approved) */}
+      {isApproved && (
+        <RevisionFeedbackForm
+          onSubmit={onRevise}
+          isSubmitting={isRevising}
+          disabled={isRegenerating || isApproving}
+          error={reviseError}
+          inputId="storyboard-revision-feedback"
+          placeholder="例: シーン1のテロップをもっとシンプルにしてほしい"
+        />
+      )}
+
       {/* Footer actions */}
       <div className="flex items-center justify-end gap-3 pt-2">
         <Button
           variant="secondary"
           onClick={onRegenerate}
           isLoading={isRegenerating}
-          disabled={isRegenerating || isApproving || isPending}
+          disabled={isRegenerating || isApproving || isPending || isRevising}
         >
           再生成する
         </Button>

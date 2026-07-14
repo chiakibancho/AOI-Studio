@@ -66,11 +66,20 @@ const baseStoryboard: Storyboard = {
   version: 1,
   status: 'completed',
   error_message: null,
+  human_feedback: null,
+  based_on_storyboard_id: null,
   approved_at: null,
   generated_at: '2026-07-13T00:00:00Z',
 }
 
-function renderView(overrides: Partial<Storyboard> = {}, handlers: { onApprove?: () => void } = {}) {
+function renderView(
+  overrides: Partial<Storyboard> = {},
+  handlers: {
+    onApprove?: () => void
+    onRevise?: (feedback: string) => void
+  } = {},
+  extraProps: { isRevising?: boolean; reviseError?: string | null } = {}
+) {
   return render(
     <StoryboardView
       projectId="p1"
@@ -78,8 +87,11 @@ function renderView(overrides: Partial<Storyboard> = {}, handlers: { onApprove?:
       structure={baseStructure}
       onRegenerate={vi.fn()}
       onApprove={handlers.onApprove ?? vi.fn()}
+      onRevise={handlers.onRevise ?? vi.fn()}
       isRegenerating={false}
       isApproving={false}
+      isRevising={extraProps.isRevising ?? false}
+      reviseError={extraProps.reviseError ?? null}
     />
   )
 }
@@ -146,5 +158,38 @@ describe('StoryboardView', () => {
 
     expect(screen.getByText('承認済み')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'この絵コンテで進む' })).not.toBeInTheDocument()
+  })
+
+  it('does not show the revision feedback form when not yet approved', () => {
+    renderView()
+
+    expect(screen.queryByLabelText('修正を依頼する')).not.toBeInTheDocument()
+  })
+
+  it('shows the revision feedback form once approved and submits trimmed text', () => {
+    const onRevise = vi.fn()
+    renderView({ approved_at: '2026-07-13T01:00:00Z' }, { onRevise })
+
+    const textarea = screen.getByLabelText('修正を依頼する')
+    fireEvent.change(textarea, { target: { value: '  テロップをもっとシンプルに  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'この内容で修正を依頼する' }))
+
+    expect(onRevise).toHaveBeenCalledWith('テロップをもっとシンプルに')
+  })
+
+  it('disables the revision form while a revision is in flight', () => {
+    renderView({ approved_at: '2026-07-13T01:00:00Z' }, {}, { isRevising: true })
+
+    expect(screen.getByLabelText('修正を依頼する')).toBeDisabled()
+  })
+
+  it('shows feedback context when the version is a revision', () => {
+    renderView({
+      approved_at: '2026-07-13T01:00:00Z',
+      human_feedback: 'テロップをもっとシンプルに',
+    })
+
+    expect(screen.getByText('フィードバックをもとに修正しました')).toBeInTheDocument()
+    expect(screen.getByText('テロップをもっとシンプルに')).toBeInTheDocument()
   })
 })

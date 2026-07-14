@@ -903,6 +903,64 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{project_id}/storyboard/revise": {
+      "post": {
+        "tags": [
+          "phase2"
+        ],
+        "summary": "Revise Storyboard",
+        "description": "承認済みの最新 Storyboard に対する修正指示から、改訂版の生成をバックグラウンドで開始する。\n\n結果は GET /storyboard でポーリングする。",
+        "operationId": "revise_storyboard_api_v1_projects__project_id__storyboard_revise_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryboardReviseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryboardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1262,6 +1320,28 @@
             ],
             "title": "Error Message"
           },
+          "human_feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Feedback"
+          },
+          "based_on_storyboard_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Based On Storyboard Id"
+          },
           "approved_at": {
             "anyOf": [
               {
@@ -1289,10 +1369,27 @@
           "version",
           "status",
           "error_message",
+          "human_feedback",
+          "based_on_storyboard_id",
           "approved_at",
           "generated_at"
         ],
         "title": "StoryboardResponse"
+      },
+      "StoryboardReviseRequest": {
+        "properties": {
+          "feedback": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Feedback"
+          }
+        },
+        "type": "object",
+        "required": [
+          "feedback"
+        ],
+        "title": "StoryboardReviseRequest"
       },
       "StoryboardScene": {
         "properties": {
