@@ -4,6 +4,7 @@ export type VideoType = components['schemas']['VideoType']
 export type ProjectStatus = components['schemas']['ProjectStatus']
 export type StructureStatus = components['schemas']['StructureStatus']
 export type SpecDraftStatus = components['schemas']['SpecDraftStatus']
+export type StoryboardStatus = components['schemas']['StoryboardStatus']
 
 export type User = components['schemas']['UserResponse']
 export type Project = components['schemas']['ProjectResponse']
@@ -12,6 +13,8 @@ export type SceneItem = components['schemas']['SceneItem']
 export type StructureOption = components['schemas']['StructureOption']
 export type Structure = components['schemas']['StructureResponse']
 export type SpecDraft = components['schemas']['SpecDraftResponse']
+export type StoryboardScene = components['schemas']['StoryboardScene']
+export type Storyboard = components['schemas']['StoryboardResponse']
 export type AuthResponse = components['schemas']['TokenResponse']
 
 export type SpecFormFields = Pick<

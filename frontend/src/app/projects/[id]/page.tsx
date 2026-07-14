@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields } from '@/types'
+import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields, Storyboard } from '@/types'
 import { VIDEO_TYPE_LABELS, PROJECT_STATUS_LABELS } from '@/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -15,6 +15,7 @@ import VideoSpecForm from '@/components/project/VideoSpecForm'
 import StructureView from '@/components/project/StructureView'
 import SpecAnalystInput from '@/components/project/SpecAnalystInput'
 import SpecDraftView from '@/components/project/SpecDraftView'
+import StoryboardView from '@/components/project/StoryboardView'
 
 const PHASE_STEPS = [
   { key: 'setup', label: '1. 動画仕様' },
@@ -39,6 +40,7 @@ export default function ProjectDetailPage() {
 
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [reviseError, setReviseError] = useState<string | null>(null)
+  const [storyboardError, setStoryboardError] = useState<string | null>(null)
   const [specSaved, setSpecSaved] = useState(false)
   const [specDraftError, setSpecDraftError] = useState<string | null>(null)
   const [specEntryMode, setSpecEntryMode] = useState<'ai' | 'manual'>('ai')
@@ -216,6 +218,59 @@ export default function ProjectDetailPage() {
     },
   })
 
+  // Fetch storyboard (404 → null). Polls every 2s while generation is pending.
+  // Moot until a Structure has been approved.
+  const { data: storyboard, isLoading: isStoryboardLoading } = useQuery<Storyboard | null>({
+    queryKey: ['project-storyboard', projectId],
+    queryFn: async () => {
+      try {
+        const res = await api.get<Storyboard>(`/api/v1/projects/${projectId}/storyboard`)
+        return res.data
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          return null
+        }
+        throw err
+      }
+    },
+    enabled: !!token && !!projectId && structure?.approved_at != null,
+    refetchInterval: (query) => (query.state.data?.status === 'pending' ? 2000 : false),
+  })
+
+  // Generate storyboard mutation
+  const generateStoryboardMutation = useMutation<Storyboard, Error>({
+    mutationFn: async () => {
+      const res = await api.post<Storyboard>(`/api/v1/projects/${projectId}/storyboard/generate`)
+      return res.data
+    },
+    onSuccess: () => {
+      setStoryboardError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-storyboard', projectId] })
+    },
+    onError: (err) => {
+      if (axios.isAxiosError(err) && err.response?.status === 503) {
+        setStoryboardError('AI APIキーが設定されていません。管理者にお問い合わせください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setStoryboardError('既に生成処理が進行中です。しばらくお待ちください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 400) {
+        setStoryboardError('承認済みの構成がありません。先に構成案を承認してください。')
+      } else {
+        setStoryboardError('絵コンテの生成に失敗しました。もう一度お試しください。')
+      }
+    },
+  })
+
+  // Approve storyboard mutation
+  const approveStoryboardMutation = useMutation<void, Error>({
+    mutationFn: async () => {
+      await api.post(`/api/v1/projects/${projectId}/storyboard/approve`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-storyboard', projectId] })
+    },
+  })
+
   function handleSpecSaved(savedSpec: VideoSpec) {
     queryClient.setQueryData(['project-spec', projectId], savedSpec)
     setSpecSaved(true)
@@ -254,9 +309,18 @@ export default function ProjectDetailPage() {
     reviseMutation.mutate(feedback)
   }
 
+  function handleGenerateStoryboard() {
+    setStoryboardError(null)
+    generateStoryboardMutation.mutate()
+  }
+
+  function handleApproveStoryboard() {
+    approveStoryboardMutation.mutate()
+  }
+
   if (!token) return null
 
-  const isLoading = isProjectLoading || isSpecLoading || isStructureLoading
+  const isLoading = isProjectLoading || isSpecLoading || isStructureLoading || isStoryboardLoading
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -481,6 +545,53 @@ export default function ProjectDetailPage() {
                       isApproving={approveMutation.isPending}
                       isRevising={reviseMutation.isPending || structure.status === 'pending'}
                       reviseError={reviseError}
+                    />
+                  </Card>
+                </div>
+              )}
+
+              {/* Generate storyboard button (structure approved, no storyboard yet) */}
+              {structure?.approved_at != null && !storyboard && (
+                <div className="flex flex-col gap-3">
+                  {storyboardError && (
+                    <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3">
+                      <p className="text-sm text-red-400">{storyboardError}</p>
+                    </div>
+                  )}
+                  <div className="flex justify-center">
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={handleGenerateStoryboard}
+                      isLoading={generateStoryboardMutation.isPending}
+                      className="gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.356A3 3 0 0013 18.827V21a1 1 0 01-1 1h-2a1 1 0 01-1-1v-2.173a3 3 0 00-.935-2.17l-.347-.356z" />
+                      </svg>
+                      絵コンテを生成する
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Storyboard view */}
+              {structure && storyboard && (
+                <div className="flex flex-col gap-3">
+                  {storyboardError && (
+                    <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3">
+                      <p className="text-sm text-red-400">{storyboardError}</p>
+                    </div>
+                  )}
+                  <Card>
+                    <StoryboardView
+                      projectId={projectId}
+                      storyboard={storyboard}
+                      structure={structure}
+                      onRegenerate={handleGenerateStoryboard}
+                      onApprove={handleApproveStoryboard}
+                      isRegenerating={generateStoryboardMutation.isPending || storyboard.status === 'pending'}
+                      isApproving={approveStoryboardMutation.isPending}
                     />
                   </Card>
                 </div>
