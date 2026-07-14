@@ -2,7 +2,6 @@
 
 import type { Storyboard, StoryboardScene, Structure } from '@/types'
 import Button from '@/components/ui/Button'
-import RevisionFeedbackForm from '@/components/project/RevisionFeedbackForm'
 
 interface StoryboardViewProps {
   projectId: string
@@ -82,11 +81,11 @@ export default function StoryboardView({
   structure,
   onRegenerate,
   onApprove,
-  onRevise,
+  onRevise: _onRevise,
   isRegenerating,
   isApproving,
-  isRevising,
-  reviseError,
+  isRevising: _isRevising,
+  reviseError: _reviseError,
 }: StoryboardViewProps) {
   const isApproved = storyboard.approved_at !== null
   const isPending = storyboard.status === 'pending'
@@ -155,39 +154,29 @@ export default function StoryboardView({
         </div>
       )}
 
-      {/* Request a revision (only once approved) */}
-      {isApproved && (
-        <RevisionFeedbackForm
-          onSubmit={onRevise}
-          isSubmitting={isRevising}
-          disabled={isRegenerating || isApproving}
-          error={reviseError}
-          inputId="storyboard-revision-feedback"
-          placeholder="例: シーン1のテロップをもっとシンプルにしてほしい"
-        />
-      )}
-
-      {/* Footer actions */}
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <Button
-          variant="secondary"
-          onClick={onRegenerate}
-          isLoading={isRegenerating}
-          disabled={isRegenerating || isApproving || isPending || isRevising}
-        >
-          再生成する
-        </Button>
-        {!isApproved && !isPending && !isFailed && (
+      {/* Footer actions — hidden once approved */}
+      {!isApproved && (
+        <div className="flex items-center justify-end gap-3 pt-2">
           <Button
-            variant="primary"
-            onClick={onApprove}
-            isLoading={isApproving}
-            disabled={isRegenerating || isApproving}
+            variant="secondary"
+            onClick={onRegenerate}
+            isLoading={isRegenerating}
+            disabled={isRegenerating || isApproving || isPending}
           >
-            この絵コンテで進む
+            再生成する
           </Button>
-        )}
-      </div>
+          {!isPending && !isFailed && (
+            <Button
+              variant="primary"
+              onClick={onApprove}
+              isLoading={isApproving}
+              disabled={isRegenerating || isApproving}
+            >
+              この絵コンテで進む
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
