@@ -162,12 +162,35 @@ describe('StoryboardView', () => {
     expect(screen.queryByRole('button', { name: '再生成する' })).not.toBeInTheDocument()
   })
 
-  it('does not show the revision feedback form regardless of approval state', () => {
+  it('does not show the revision feedback form when not yet approved', () => {
     renderView()
-    expect(screen.queryByLabelText('修正を依頼する')).not.toBeInTheDocument()
 
-    renderView({ approved_at: '2026-07-13T01:00:00Z' })
     expect(screen.queryByLabelText('修正を依頼する')).not.toBeInTheDocument()
+  })
+
+  it('shows the revision feedback form once approved and submits trimmed text', () => {
+    const onRevise = vi.fn()
+    renderView({ approved_at: '2026-07-13T01:00:00Z' }, { onRevise })
+
+    const textarea = screen.getByLabelText('修正を依頼する')
+    fireEvent.change(textarea, { target: { value: '  テロップをもっとシンプルに  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'この内容で修正を依頼する' }))
+
+    expect(onRevise).toHaveBeenCalledWith('テロップをもっとシンプルに')
+  })
+
+  it('disables the revision form while a revision is in flight', () => {
+    renderView({ approved_at: '2026-07-13T01:00:00Z' }, {}, { isRevising: true })
+
+    expect(screen.getByLabelText('修正を依頼する')).toBeDisabled()
+  })
+
+  it('shows the revision form once approved while keeping regenerate/approve hidden', () => {
+    renderView({ approved_at: '2026-07-13T01:00:00Z' })
+
+    expect(screen.getByLabelText('修正を依頼する')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '再生成する' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'この絵コンテで進む' })).not.toBeInTheDocument()
   })
 
   it('shows feedback context when the version is a revision', () => {

@@ -2,6 +2,7 @@
 
 import type { Storyboard, StoryboardScene, Structure } from '@/types'
 import Button from '@/components/ui/Button'
+import RevisionFeedbackForm from '@/components/project/RevisionFeedbackForm'
 
 interface StoryboardViewProps {
   projectId: string
@@ -81,11 +82,11 @@ export default function StoryboardView({
   structure,
   onRegenerate,
   onApprove,
-  onRevise: _onRevise,
+  onRevise,
   isRegenerating,
   isApproving,
-  isRevising: _isRevising,
-  reviseError: _reviseError,
+  isRevising,
+  reviseError,
 }: StoryboardViewProps) {
   const isApproved = storyboard.approved_at !== null
   const isPending = storyboard.status === 'pending'
@@ -152,6 +153,18 @@ export default function StoryboardView({
             />
           ))}
         </div>
+      )}
+
+      {/* Request a revision (only once approved) */}
+      {isApproved && (
+        <RevisionFeedbackForm
+          onSubmit={onRevise}
+          isSubmitting={isRevising}
+          disabled={isRegenerating || isApproving}
+          error={reviseError}
+          inputId="storyboard-revision-feedback"
+          placeholder="例: シーン1のテロップをもっとシンプルにしてほしい"
+        />
       )}
 
       {/* Footer actions — hidden once approved */}
