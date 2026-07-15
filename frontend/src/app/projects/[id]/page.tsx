@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields, Storyboard } from '@/types'
+import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields, Storyboard, ShootingList } from '@/types'
 import { VIDEO_TYPE_LABELS, PROJECT_STATUS_LABELS } from '@/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -16,6 +16,7 @@ import StructureView from '@/components/project/StructureView'
 import SpecAnalystInput from '@/components/project/SpecAnalystInput'
 import SpecDraftView from '@/components/project/SpecDraftView'
 import StoryboardView from '@/components/project/StoryboardView'
+import ShootingListView from '@/components/project/ShootingListView'
 
 const PHASE_STEPS = [
   { key: 'setup', label: '1. 動画仕様' },
@@ -42,6 +43,7 @@ export default function ProjectDetailPage() {
   const [reviseError, setReviseError] = useState<string | null>(null)
   const [storyboardError, setStoryboardError] = useState<string | null>(null)
   const [storyboardReviseError, setStoryboardReviseError] = useState<string | null>(null)
+  const [shootingListError, setShootingListError] = useState<string | null>(null)
   const [specSaved, setSpecSaved] = useState(false)
   const [specDraftError, setSpecDraftError] = useState<string | null>(null)
   const [specEntryMode, setSpecEntryMode] = useState<'ai' | 'manual'>('ai')
@@ -297,6 +299,72 @@ export default function ProjectDetailPage() {
     },
   })
 
+  // Fetch shooting list (404 → null). Polls every 2s while generation is pending.
+  const { data: shootingList, isLoading: isShootingListLoading } = useQuery<ShootingList | null>({
+    queryKey: ['project-shooting-list', projectId],
+    queryFn: async () => {
+      try {
+        const res = await api.get<ShootingList>(`/api/v1/projects/${projectId}/shooting-list`)
+        return res.data
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          return null
+        }
+        throw err
+      }
+    },
+    enabled: !!token && !!projectId && storyboard?.approved_at != null,
+    refetchInterval: (query) => (query.state.data?.status === 'pending' ? 2000 : false),
+  })
+
+  // Generate shooting list mutation
+  const generateShootingListMutation = useMutation<ShootingList, Error>({
+    mutationFn: async () => {
+      const res = await api.post<ShootingList>(`/api/v1/projects/${projectId}/shooting-list/generate`)
+      return res.data
+    },
+    onSuccess: () => {
+      setShootingListError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-shooting-list', projectId] })
+    },
+    onError: (err) => {
+      if (axios.isAxiosError(err) && err.response?.status === 503) {
+        setShootingListError('AI APIキーが設定されていません。管理者にお問い合わせください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setShootingListError('既に生成処理が進行中です。しばらくお待ちください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 400) {
+        setShootingListError('承認済みの絵コンテがありません。先に絵コンテを承認してください。')
+      } else {
+        setShootingListError('撮影リストの生成に失敗しました。もう一度お試しください。')
+      }
+    },
+  })
+
+  // Approve shooting list mutation
+  const approveShootingListMutation = useMutation<void, Error>({
+    mutationFn: async () => {
+      await api.post(`/api/v1/projects/${projectId}/shooting-list/approve`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-shooting-list', projectId] })
+    },
+  })
+
+  // Toggle a shot's completed flag
+  const toggleShotMutation = useMutation<ShootingList, Error, { cutNumber: number; completed: boolean }>({
+    mutationFn: async ({ cutNumber, completed }) => {
+      const res = await api.patch<ShootingList>(
+        `/api/v1/projects/${projectId}/shooting-list/shots/${cutNumber}`,
+        { completed }
+      )
+      return res.data
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['project-shooting-list', projectId], data)
+    },
+  })
+
   function handleSpecSaved(savedSpec: VideoSpec) {
     queryClient.setQueryData(['project-spec', projectId], savedSpec)
     setSpecSaved(true)
@@ -349,9 +417,23 @@ export default function ProjectDetailPage() {
     reviseStoryboardMutation.mutate(feedback)
   }
 
+  function handleGenerateShootingList() {
+    setShootingListError(null)
+    generateShootingListMutation.mutate()
+  }
+
+  function handleApproveShootingList() {
+    approveShootingListMutation.mutate()
+  }
+
+  function handleToggleShot(cutNumber: number, completed: boolean) {
+    toggleShotMutation.mutate({ cutNumber, completed })
+  }
+
   if (!token) return null
 
-  const isLoading = isProjectLoading || isSpecLoading || isStructureLoading || isStoryboardLoading
+  const isLoading =
+    isProjectLoading || isSpecLoading || isStructureLoading || isStoryboardLoading || isShootingListLoading
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -626,6 +708,53 @@ export default function ProjectDetailPage() {
                       isApproving={approveStoryboardMutation.isPending}
                       isRevising={reviseStoryboardMutation.isPending || storyboard.status === 'pending'}
                       reviseError={storyboardReviseError}
+                    />
+                  </Card>
+                </div>
+              )}
+
+              {/* Generate shooting list button (storyboard approved, no shooting list yet) */}
+              {storyboard?.approved_at != null && !shootingList && (
+                <div className="flex flex-col gap-3">
+                  {shootingListError && (
+                    <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3">
+                      <p className="text-sm text-red-400">{shootingListError}</p>
+                    </div>
+                  )}
+                  <div className="flex justify-center">
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={handleGenerateShootingList}
+                      isLoading={generateShootingListMutation.isPending}
+                      className="gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                      撮影リストを作成する
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Shooting list view */}
+              {storyboard && shootingList && (
+                <div className="flex flex-col gap-3">
+                  {shootingListError && (
+                    <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3">
+                      <p className="text-sm text-red-400">{shootingListError}</p>
+                    </div>
+                  )}
+                  <Card>
+                    <ShootingListView
+                      projectId={projectId}
+                      shootingList={shootingList}
+                      onRegenerate={handleGenerateShootingList}
+                      onApprove={handleApproveShootingList}
+                      onToggleShot={handleToggleShot}
+                      isRegenerating={generateShootingListMutation.isPending || shootingList.status === 'pending'}
+                      isApproving={approveShootingListMutation.isPending}
                     />
                   </Card>
                 </div>

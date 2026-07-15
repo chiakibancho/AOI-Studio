@@ -5,6 +5,7 @@ export type ProjectStatus = components['schemas']['ProjectStatus']
 export type StructureStatus = components['schemas']['StructureStatus']
 export type SpecDraftStatus = components['schemas']['SpecDraftStatus']
 export type StoryboardStatus = components['schemas']['StoryboardStatus']
+export type ShootingListStatus = components['schemas']['ShootingListStatus']
 
 export type User = components['schemas']['UserResponse']
 export type Project = components['schemas']['ProjectResponse']
@@ -15,6 +16,9 @@ export type Structure = components['schemas']['StructureResponse']
 export type SpecDraft = components['schemas']['SpecDraftResponse']
 export type StoryboardScene = components['schemas']['StoryboardScene']
 export type Storyboard = components['schemas']['StoryboardResponse']
+export type ShootingListShot = components['schemas']['ShootingListShot']
+export type ShotCategory = ShootingListShot['category']
+export type ShootingList = components['schemas']['ShootingListResponse']
 export type AuthResponse = components['schemas']['TokenResponse']
 
 export type SpecFormFields = Pick<
@@ -41,6 +45,16 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   upload: 'アップロード',
   export: 'エクスポート',
 }
+
+export const SHOT_CATEGORY_LABELS: Record<ShotCategory, string> = {
+  exterior: '外観',
+  people: '人物',
+  product: '商品',
+  broll: 'Bロール',
+  other: 'その他',
+}
+
+export const SHOT_CATEGORY_ORDER: ShotCategory[] = ['exterior', 'people', 'product', 'broll', 'other']
 
 export const MOOD_OPTIONS = [
   { value: 'professional', label: 'プロフェッショナル' },

@@ -361,6 +361,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/shooting-list/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Shooting List
+         * @description 承認済みの Storyboard から撮影リスト生成をバックグラウンドで開始する。結果は GET /shooting-list でポーリングする。
+         */
+        post: operations["generate_shooting_list_api_v1_projects__project_id__shooting_list_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/shooting-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shooting List
+         * @description 最新の ShootingList を取得する（version 降順で最初の1件）。なければ 404。
+         */
+        get: operations["get_shooting_list_api_v1_projects__project_id__shooting_list_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/shooting-list/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Shooting List
+         * @description 最新 ShootingList を承認し、プロジェクト status を 'upload' に更新する。
+         */
+        post: operations["approve_shooting_list_api_v1_projects__project_id__shooting_list_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/shooting-list/shots/{cut_number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Toggle Shooting List Shot
+         * @description 最新 ShootingList の指定 cut_number の撮影完了フラグを更新する。
+         */
+        patch: operations["toggle_shooting_list_shot_api_v1_projects__project_id__shooting_list_shots__cut_number__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -431,6 +511,66 @@ export interface components {
             /** Notes */
             notes: string;
         };
+        /** ShootingListResponse */
+        ShootingListResponse: {
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Storyboard Id */
+            storyboard_id: string;
+            /** Shots */
+            shots: components["schemas"]["ShootingListShot"][];
+            /** Version */
+            version: number;
+            status: components["schemas"]["ShootingListStatus"];
+            /** Error Message */
+            error_message: string | null;
+            /** Approved At */
+            approved_at: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+        };
+        /**
+         * ShootingListShot
+         * @description 永続化・レスポンス形（AI生成フィールド + バックエンド計算のcut_number/completed）。
+         */
+        ShootingListShot: {
+            /** Cut Number */
+            cut_number: number;
+            /** Scene Number */
+            scene_number: number;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "exterior" | "people" | "product" | "broll" | "other";
+            /** Title */
+            title: string;
+            /** Location */
+            location: string;
+            /** Equipment */
+            equipment: string;
+            /** Talent Props */
+            talent_props: string;
+            /** Notes */
+            notes: string;
+            /** Completed */
+            completed: boolean;
+        };
+        /** ShootingListShotToggleRequest */
+        ShootingListShotToggleRequest: {
+            /** Completed */
+            completed: boolean;
+        };
+        /**
+         * ShootingListStatus
+         * @enum {string}
+         */
+        ShootingListStatus: "pending" | "completed" | "failed";
         /** SignupRequest */
         SignupRequest: {
             /**
@@ -1325,6 +1465,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StoryboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_shooting_list_api_v1_projects__project_id__shooting_list_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShootingListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shooting_list_api_v1_projects__project_id__shooting_list_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShootingListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_shooting_list_api_v1_projects__project_id__shooting_list_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShootingListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    toggle_shooting_list_shot_api_v1_projects__project_id__shooting_list_shots__cut_number__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                cut_number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShootingListShotToggleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShootingListResponse"];
                 };
             };
             /** @description Validation Error */

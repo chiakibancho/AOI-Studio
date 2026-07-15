@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, projects, phase1, phase2
+from app.api.v1.endpoints import auth, projects, phase1, phase2, phase3
 
 api_router = APIRouter()
 
@@ -15,4 +15,9 @@ api_router.include_router(
     phase2.router,
     prefix="/projects/{project_id}",
     tags=["phase2"],
+)
+api_router.include_router(
+    phase3.router,
+    prefix="/projects/{project_id}",
+    tags=["phase3"],
 )

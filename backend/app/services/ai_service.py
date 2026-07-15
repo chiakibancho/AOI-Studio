@@ -27,6 +27,16 @@ MOOD_VALUES: list[str] = [
     "playful",
 ]
 
+SHOT_CATEGORY_VALUES: list[str] = ["exterior", "people", "product", "broll", "other"]
+
+SHOT_CATEGORY_LABELS: dict[str, str] = {
+    "exterior": "外観",
+    "people": "人物",
+    "product": "商品",
+    "broll": "Bロール",
+    "other": "その他",
+}
+
 _SHORT_DURATION_VIDEO_TYPES = {"sns_ad", "short"}
 
 
@@ -419,6 +429,84 @@ async def revise_storyboard(project, spec, structure_scenes, base_storyboard_sce
     prompt = _build_storyboard_revision_prompt(
         project, spec, structure_scenes, base_storyboard_scenes, feedback
     )
+
+    try:
+        message = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+            timeout=120,
+        )
+    except anthropic.APIError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Claude API エラー: {e}",
+        )
+
+    response_text = message.content[0].text
+    return _parse_json_response(response_text)
+
+
+def _build_shooting_list_prompt(project, spec, storyboard_scenes) -> str:
+    video_type_label = VIDEO_TYPE_LABELS.get(
+        project.video_type.value if hasattr(project.video_type, "value") else str(project.video_type),
+        str(project.video_type),
+    )
+
+    scenes_lines = "\n".join(
+        f"{s['scene_number']}. 狙い: {s['intent']} / 構図: {s['composition']} / "
+        f"カメラワーク: {s['camera_work']} / テロップ: {s['text_overlay'] or '（なし）'}"
+        for s in storyboard_scenes
+    )
+    scene_numbers = ", ".join(str(s["scene_number"]) for s in storyboard_scenes)
+    category_values = ", ".join(SHOT_CATEGORY_VALUES)
+
+    return f"""あなたはプロの撮影コーディネーターです。以下の承認済み絵コンテから、現場で使える撮影指示リスト（ショットリスト）を作成してください。
+
+## プロジェクト情報
+- タイトル: {project.title}
+- 動画タイプ: {video_type_label}
+
+## 動画仕様
+- ターゲット層: {spec.target_audience}
+- 伝えたいメッセージ: {spec.message}
+- 雰囲気・トーン: {spec.mood}
+
+## 承認済みの絵コンテ（シーン一覧）
+{scenes_lines}
+
+## 出力形式（必ず以下のJSON形式のみで出力してください。説明文は不要です）
+
+{{
+  "shots": [
+    {{
+      "scene_number": シーン番号（上記の番号のいずれか）,
+      "category": "ショットのカテゴリ（{category_values} のいずれか）",
+      "title": "このショットの短い見出し",
+      "location": "撮影場所",
+      "equipment": "必要な機材（カメラ・レンズ・照明・音声など）",
+      "talent_props": "必要な出演者・小道具",
+      "notes": "撮影時の注意点（時間帯、天候、逆光対策など）"
+    }}
+  ]
+}}
+
+## ルール
+- 各シーン（scene_number）は最低1つのショットでカバーすること。1つのシーンに複数のカメラアングル（例: ワイド+クローズアップ）が必要な場合は、同じ scene_number で複数のショットを出力してよい
+- scene_number は次の番号のみを使用すること（それ以外の番号は含めない）: {scene_numbers}
+- 絵コンテに存在しない情報（ロケーション・機材など）は、構図やカメラワークの記述から現場で実行可能な内容を具体的に推論すること"""
+
+
+async def generate_shooting_list(project, spec, storyboard_scenes) -> dict:
+    """Claude API を使って、承認済み絵コンテの各シーンから撮影リストを生成する。"""
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="ANTHROPIC_API_KEY が設定されていません。",
+        )
+
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    prompt = _build_shooting_list_prompt(project, spec, storyboard_scenes)
 
     try:
         message = await client.messages.create(

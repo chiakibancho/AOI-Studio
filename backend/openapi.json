@@ -961,6 +961,217 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{project_id}/shooting-list/generate": {
+      "post": {
+        "tags": [
+          "phase3"
+        ],
+        "summary": "Generate Shooting List",
+        "description": "承認済みの Storyboard から撮影リスト生成をバックグラウンドで開始する。結果は GET /shooting-list でポーリングする。",
+        "operationId": "generate_shooting_list_api_v1_projects__project_id__shooting_list_generate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShootingListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/shooting-list": {
+      "get": {
+        "tags": [
+          "phase3"
+        ],
+        "summary": "Get Shooting List",
+        "description": "最新の ShootingList を取得する（version 降順で最初の1件）。なければ 404。",
+        "operationId": "get_shooting_list_api_v1_projects__project_id__shooting_list_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShootingListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/shooting-list/approve": {
+      "post": {
+        "tags": [
+          "phase3"
+        ],
+        "summary": "Approve Shooting List",
+        "description": "最新 ShootingList を承認し、プロジェクト status を 'upload' に更新する。",
+        "operationId": "approve_shooting_list_api_v1_projects__project_id__shooting_list_approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShootingListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/shooting-list/shots/{cut_number}": {
+      "patch": {
+        "tags": [
+          "phase3"
+        ],
+        "summary": "Toggle Shooting List Shot",
+        "description": "最新 ShootingList の指定 cut_number の撮影完了フラグを更新する。",
+        "operationId": "toggle_shooting_list_shot_api_v1_projects__project_id__shooting_list_shots__cut_number__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "cut_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cut Number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShootingListShotToggleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShootingListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1124,6 +1335,160 @@
           "notes"
         ],
         "title": "SceneItem"
+      },
+      "ShootingListResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "storyboard_id": {
+            "type": "string",
+            "title": "Storyboard Id"
+          },
+          "shots": {
+            "items": {
+              "$ref": "#/components/schemas/ShootingListShot"
+            },
+            "type": "array",
+            "title": "Shots"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ShootingListStatus"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "storyboard_id",
+          "shots",
+          "version",
+          "status",
+          "error_message",
+          "approved_at",
+          "generated_at"
+        ],
+        "title": "ShootingListResponse"
+      },
+      "ShootingListShot": {
+        "properties": {
+          "cut_number": {
+            "type": "integer",
+            "title": "Cut Number"
+          },
+          "scene_number": {
+            "type": "integer",
+            "title": "Scene Number"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "exterior",
+              "people",
+              "product",
+              "broll",
+              "other"
+            ],
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location"
+          },
+          "equipment": {
+            "type": "string",
+            "title": "Equipment"
+          },
+          "talent_props": {
+            "type": "string",
+            "title": "Talent Props"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes"
+          },
+          "completed": {
+            "type": "boolean",
+            "title": "Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cut_number",
+          "scene_number",
+          "category",
+          "title",
+          "location",
+          "equipment",
+          "talent_props",
+          "notes",
+          "completed"
+        ],
+        "title": "ShootingListShot",
+        "description": "永続化・レスポンス形（AI生成フィールド + バックエンド計算のcut_number/completed）。"
+      },
+      "ShootingListShotToggleRequest": {
+        "properties": {
+          "completed": {
+            "type": "boolean",
+            "title": "Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "completed"
+        ],
+        "title": "ShootingListShotToggleRequest"
+      },
+      "ShootingListStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "completed",
+          "failed"
+        ],
+        "title": "ShootingListStatus"
       },
       "SignupRequest": {
         "properties": {
