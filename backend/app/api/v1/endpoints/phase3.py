@@ -1,7 +1,9 @@
+import csv
+import io
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +25,14 @@ from app.services import ai_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+_SHOT_CATEGORY_LABELS: dict[str, str] = {
+    "exterior": "外観",
+    "people": "人物",
+    "product": "商品",
+    "broll": "Bロール",
+    "other": "その他",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +211,50 @@ async def get_shooting_list(
             detail="ShootingList not found",
         )
     return ShootingListResponse.model_validate(shooting_list)
+
+
+@router.get("/shooting-list/export")
+async def export_shooting_list_csv(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """最新 ShootingList を CSV（UTF-8 BOM付き）でダウンロードする。"""
+    project = await _get_project_for_user(project_id, current_user, db)
+
+    result = await db.execute(
+        select(ShootingList)
+        .where(ShootingList.project_id == project.id)
+        .order_by(ShootingList.version.desc())
+        .limit(1)
+    )
+    shooting_list = result.scalar_one_or_none()
+    if shooting_list is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ShootingList not found",
+        )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["カテゴリ", "ショット番号", "内容", "チェック状態"])
+    for shot in shooting_list.shots:
+        writer.writerow(
+            [
+                _SHOT_CATEGORY_LABELS.get(shot["category"], shot["category"]),
+                shot["cut_number"],
+                shot["title"],
+                "済" if shot["completed"] else "未",
+            ]
+        )
+
+    csv_bytes = buffer.getvalue().encode("utf-8-sig")
+
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="shooting_list.csv"'},
+    )
 
 
 @router.post("/shooting-list/approve", response_model=ShootingListResponse)

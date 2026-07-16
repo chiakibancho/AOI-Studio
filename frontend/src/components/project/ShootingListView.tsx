@@ -10,6 +10,7 @@ interface ShootingListViewProps {
   onRegenerate: () => void
   onApprove: () => void
   onToggleShot: (cutNumber: number, completed: boolean) => void
+  onDownloadCsv: () => void
   isRegenerating: boolean
   isApproving: boolean
 }
@@ -89,6 +90,7 @@ export default function ShootingListView({
   onRegenerate,
   onApprove,
   onToggleShot,
+  onDownloadCsv,
   isRegenerating,
   isApproving,
 }: ShootingListViewProps) {
@@ -121,14 +123,24 @@ export default function ShootingListView({
             </span>
           )}
         </div>
-        {isApproved && (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-xs font-medium text-green-400">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            承認済み
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onDownloadCsv}
+            disabled={totalCount === 0}
+          >
+            CSVダウンロード
+          </Button>
+          {isApproved && (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-xs font-medium text-green-400">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              承認済み
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Pending state */}

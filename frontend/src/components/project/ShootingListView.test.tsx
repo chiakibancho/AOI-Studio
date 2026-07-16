@@ -51,7 +51,11 @@ const baseShootingList: ShootingList = {
 
 function renderView(
   overrides: Partial<ShootingList> = {},
-  handlers: { onApprove?: () => void; onToggleShot?: (cutNumber: number, completed: boolean) => void } = {}
+  handlers: {
+    onApprove?: () => void
+    onToggleShot?: (cutNumber: number, completed: boolean) => void
+    onDownloadCsv?: () => void
+  } = {}
 ) {
   return render(
     <ShootingListView
@@ -60,6 +64,7 @@ function renderView(
       onRegenerate={vi.fn()}
       onApprove={handlers.onApprove ?? vi.fn()}
       onToggleShot={handlers.onToggleShot ?? vi.fn()}
+      onDownloadCsv={handlers.onDownloadCsv ?? vi.fn()}
       isRegenerating={false}
       isApproving={false}
     />
@@ -73,6 +78,23 @@ describe('ShootingListView', () => {
     expect(screen.getByText('AIが撮影リストを生成しています...')).toBeInTheDocument()
     expect(screen.queryByText('商品カット')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '再生成する' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'CSVダウンロード' })).toBeDisabled()
+  })
+
+  it('enables the CSV download button when shots exist and calls the handler on click', () => {
+    const onDownloadCsv = vi.fn()
+    renderView({}, { onDownloadCsv })
+
+    const button = screen.getByRole('button', { name: 'CSVダウンロード' })
+    expect(button).not.toBeDisabled()
+    fireEvent.click(button)
+    expect(onDownloadCsv).toHaveBeenCalled()
+  })
+
+  it('keeps the CSV download button visible after approval', () => {
+    renderView({ approved_at: '2026-07-15T01:00:00Z' })
+
+    expect(screen.getByRole('button', { name: 'CSVダウンロード' })).not.toBeDisabled()
   })
 
   it('shows the error message when failed', () => {

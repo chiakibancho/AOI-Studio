@@ -430,6 +430,32 @@ export default function ProjectDetailPage() {
     toggleShotMutation.mutate({ cutNumber, completed })
   }
 
+  function handleDownloadCsv() {
+    if (!project) return
+    api
+      .get(`/api/v1/projects/${projectId}/shooting-list/export`, { responseType: 'blob' })
+      .then((res) => {
+        const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
+        const today = new Date()
+        const yyyy = today.getFullYear()
+        const mm = String(today.getMonth() + 1).padStart(2, '0')
+        const dd = String(today.getDate()).padStart(2, '0')
+        const filename = `${project.title}_撮影リスト_${yyyy}${mm}${dd}.csv`
+
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      })
+      .catch((error) => {
+        console.error('CSVダウンロードに失敗しました', error)
+      })
+  }
+
   if (!token) return null
 
   const isLoading =
@@ -753,6 +779,7 @@ export default function ProjectDetailPage() {
                       onRegenerate={handleGenerateShootingList}
                       onApprove={handleApproveShootingList}
                       onToggleShot={handleToggleShot}
+                      onDownloadCsv={handleDownloadCsv}
                       isRegenerating={generateShootingListMutation.isPending || shootingList.status === 'pending'}
                       isApproving={approveShootingListMutation.isPending}
                     />
