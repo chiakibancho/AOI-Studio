@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import CharacterBibleView, { parseCharacterText } from './CharacterBibleView'
+import CharacterBibleView from './CharacterBibleView'
 import type { Character } from '@/types'
 
 vi.mock('@/lib/api', () => ({
@@ -13,8 +13,7 @@ const baseCharacter: Character = {
   id: 'c1',
   project_id: 'p1',
   name: 'Alice',
-  variables: { FACE_SHAPE: 'oval' },
-  template_version: 'v1',
+  prompt: 'A character with red hair',
   sheet_image_path: null,
   status: 'draft',
   error_message: null,
@@ -29,7 +28,6 @@ function renderView(
   return render(
     <CharacterBibleView
       characters={[]}
-      templateVariables={['FACE_SHAPE', 'EYE_COLOR']}
       onCreate={vi.fn()}
       onGenerate={vi.fn()}
       onApprove={vi.fn()}
@@ -47,26 +45,62 @@ describe('CharacterBibleView', () => {
     vi.clearAllMocks()
   })
 
-  it('builds a form field for each template variable', () => {
-    renderView()
-
-    expect(screen.getByText('名前')).toBeInTheDocument()
-    expect(screen.getByText('Face Shape')).toBeInTheDocument()
-    expect(screen.getByText('Eye Color')).toBeInTheDocument()
-  })
-
-  it('calls onCreate with the name and variables on submit', () => {
+  it('calls onCreate with the name and prompt when Generate is clicked', () => {
     const onCreate = vi.fn()
     renderView({ onCreate })
 
-    const inputs = screen.getAllByRole('textbox')
-    fireEvent.change(inputs[0], { target: { value: 'Alice' } })
-    fireEvent.change(inputs[1], { target: { value: 'oval' } })
-    fireEvent.change(inputs[2], { target: { value: 'blue' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'キャラクター名' }), {
+      target: { value: 'Alice' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character Prompt' }), {
+      target: { value: 'A character with red hair' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
 
-    fireEvent.click(screen.getByRole('button', { name: '作成する' }))
+    expect(onCreate).toHaveBeenCalledWith('Alice', 'A character with red hair')
+  })
 
-    expect(onCreate).toHaveBeenCalledWith('Alice', { FACE_SHAPE: 'oval', EYE_COLOR: 'blue' })
+  it('appends filled Advanced fields to the prompt, in order, when creating', () => {
+    const onCreate = vi.fn()
+    renderView({ onCreate })
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'キャラクター名' }), {
+      target: { value: 'Alice' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character Prompt' }), {
+      target: { value: 'Base description.' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Face' }), {
+      target: { value: 'oval, freckles' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Body' }), {
+      target: { value: 'slim' },
+    })
+    // Hair と Clothes は未入力のまま
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    expect(onCreate).toHaveBeenCalledWith(
+      'Alice',
+      'Base description.\nFace: oval, freckles\nBody: slim'
+    )
+  })
+
+  it('does not append anything when Advanced fields are left empty', () => {
+    const onCreate = vi.fn()
+    renderView({ onCreate })
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'キャラクター名' }), {
+      target: { value: 'Alice' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character Prompt' }), {
+      target: { value: 'Base description.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    expect(onCreate).toHaveBeenCalledWith('Alice', 'Base description.')
   })
 
   it('shows a spinner while a character is generating', () => {
@@ -79,7 +113,7 @@ describe('CharacterBibleView', () => {
     const onGenerate = vi.fn()
     renderView({ characters: [baseCharacter], onGenerate })
 
-    fireEvent.click(screen.getByRole('button', { name: '生成する' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     expect(onGenerate).toHaveBeenCalledWith('c1')
   })
 
@@ -105,130 +139,5 @@ describe('CharacterBibleView', () => {
     })
 
     expect(screen.getByText('Together AI エラー: 500')).toBeInTheDocument()
-  })
-
-  it('applies pasted text to matching fields via the bulk input section', () => {
-    renderView({ templateVariables: ['FACE_SHAPE', 'EYE_COLOR', 'ART_STYLE'] })
-
-    fireEvent.click(screen.getByRole('button', { name: /キャラ設定をテキストで貼り付け/ }))
-
-    const bulkTextarea = screen.getByRole('textbox', { name: 'キャラ設定テキスト' })
-    fireEvent.change(bulkTextarea, {
-      target: {
-        value: 'Name: Alice\nFace Shape: oval\nEye Color: brown\nArt Style: clean digital anime style',
-      },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'フィールドに反映する' }))
-
-    expect(screen.getByRole('textbox', { name: '名前' })).toHaveValue('Alice')
-    expect(screen.getByRole('textbox', { name: 'Face Shape' })).toHaveValue('oval')
-    expect(screen.getByRole('textbox', { name: 'Art Style' })).toHaveValue('clean digital anime style')
-  })
-
-  it('does not clear fields left unmatched by the pasted text', () => {
-    renderView({ templateVariables: ['FACE_SHAPE', 'EYE_COLOR', 'ART_STYLE'] })
-
-    fireEvent.change(screen.getByRole('textbox', { name: 'Eye Color' }), {
-      target: { value: 'brown' },
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: /キャラ設定をテキストで貼り付け/ }))
-    const bulkTextarea = screen.getByRole('textbox', { name: 'キャラ設定テキスト' })
-    fireEvent.change(bulkTextarea, {
-      target: {
-        value: 'Some unrelated preamble that matches no known field.\nFace Shape: oval',
-      },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'フィールドに反映する' }))
-
-    expect(screen.getByRole('textbox', { name: 'Face Shape' })).toHaveValue('oval')
-    expect(screen.getByRole('textbox', { name: 'Eye Color' })).toHaveValue('brown')
-  })
-})
-
-describe('parseCharacterText', () => {
-  const FULL_TEMPLATE_VARIABLES = [
-    'FACE_SHAPE',
-    'EYE_SHAPE',
-    'EYE_COLOR',
-    'EYEBROWS',
-    'NOSE',
-    'MOUTH',
-    'SKIN',
-    'HAIR_STYLE',
-    'HAIR_LENGTH',
-    'HAIR_COLOR',
-    'BANGS',
-    'HEIGHT',
-    'BODY_TYPE',
-    'SHOULDER_WIDTH',
-    'HAND_SIZE',
-    'LEG_LENGTH',
-    'TOP',
-    'BOTTOM',
-    'SHOES',
-    'ACCESSORIES',
-    'PRIMARY_COLOR',
-    'SECONDARY_COLOR',
-    'ACCENT_COLOR',
-    'ART_STYLE',
-  ]
-
-  it('separates SKIN from HAIR_STYLE even without a blank line between them', () => {
-    const text = [
-      'Face Shape Slim oval face...',
-      'Eye Color Deep gray-brown',
-      'Eyebrows Neat, slightly arched',
-      'Skin Fair, pale',
-      'Hair Style Medium-length black hair...',
-    ].join('\n')
-
-    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
-
-    expect(parsed.SKIN).toBe('Fair, pale')
-    expect(parsed.HAIR_STYLE).toBe('Medium-length black hair...')
-  })
-
-  it('separates fields even when pasted as a single line with no newlines', () => {
-    const text =
-      'Face Shape Slim oval face... Eye Color Deep gray-brown Eyebrows Neat, slightly arched ' +
-      'Skin Fair, pale Hair Style Medium-length black hair...'
-
-    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
-
-    expect(parsed.SKIN).toBe('Fair, pale')
-    expect(parsed.HAIR_STYLE).toBe('Medium-length black hair...')
-  })
-
-  it('recognizes a raw underscored template variable name as a field label too', () => {
-    const text = 'Skin Fair, pale\nHAIR_STYLE: Medium-length black hair...'
-
-    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
-
-    expect(parsed.SKIN).toBe('Fair, pale')
-    expect(parsed.HAIR_STYLE).toBe('Medium-length black hair...')
-  })
-
-  it('falls back to the line before Eye Color as EYE_SHAPE when the label is omitted', () => {
-    const text = [
-      'Face Shape Slim oval face',
-      'Slightly almond-shaped, upturned outer corners',
-      'Eye Color Deep gray-brown',
-    ].join('\n')
-
-    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
-
-    expect(parsed.EYE_SHAPE).toBe('Slightly almond-shaped, upturned outer corners')
-    expect(parsed.FACE_SHAPE).toBe('Slim oval face')
-    expect(parsed.EYE_COLOR).toBe('Deep gray-brown')
-  })
-
-  it('does not invent an EYE_SHAPE value when there is no orphan line before Eye Color', () => {
-    const text = ['Face Shape Slim oval face', 'Eye Color Deep gray-brown'].join('\n')
-
-    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
-
-    expect(parsed.EYE_SHAPE).toBeUndefined()
-    expect(parsed.FACE_SHAPE).toBe('Slim oval face')
   })
 })

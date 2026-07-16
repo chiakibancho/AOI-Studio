@@ -502,30 +502,9 @@ export interface paths {
         put?: never;
         /**
          * Create Character
-         * @description キャラクターを作成する（name + variables）。variables は現行テンプレートの
-         *     プレースホルダー集合と過不足なく一致している必要がある。
+         * @description キャラクターを作成する（name + prompt）。prompt はFLUXにそのまま渡す全文テキスト。
          */
         post: operations["create_character_api_v1_projects__project_id__characters_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/characters/template-variables": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Template Variables
-         * @description 現行のキャラクターバイブルテンプレートが持つプレースホルダー一覧を返す。
-         */
-        get: operations["get_template_variables_api_v1_characters_template_variables_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -628,10 +607,8 @@ export interface components {
         CharacterCreateRequest: {
             /** Name */
             name: string;
-            /** Variables */
-            variables: {
-                [key: string]: string;
-            };
+            /** Prompt */
+            prompt: string;
         };
         /** CharacterResponse */
         CharacterResponse: {
@@ -641,12 +618,8 @@ export interface components {
             project_id: string;
             /** Name */
             name: string;
-            /** Variables */
-            variables: {
-                [key: string]: string;
-            };
-            /** Template Version */
-            template_version: string;
+            /** Prompt */
+            prompt: string;
             /** Sheet Image Path */
             sheet_image_path: string | null;
             status: components["schemas"]["CharacterStatus"];
@@ -984,13 +957,6 @@ export interface components {
          * @enum {string}
          */
         StructureStatus: "pending" | "completed" | "failed";
-        /** TemplateVariablesResponse */
-        TemplateVariablesResponse: {
-            /** Template Version */
-            template_version: string;
-            /** Variables */
-            variables: string[];
-        };
         /** TokenResponse */
         TokenResponse: {
             /** Access Token */
@@ -2020,26 +1986,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_template_variables_api_v1_characters_template_variables_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TemplateVariablesResponse"];
                 };
             };
         };

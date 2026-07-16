@@ -2,7 +2,7 @@ import asyncio
 from unittest.mock import AsyncMock
 
 from app.core.config import settings
-from app.services import character_bible, together_ai_service
+from app.services import together_ai_service
 from app.services.together_ai_service import ImageGenerationError
 
 # 1x1 の透明PNG（テスト用のダミー生成結果）
@@ -13,60 +13,13 @@ FAKE_PNG_BYTES = bytes.fromhex(
 )
 
 
-def _fake_variables() -> dict[str, str]:
-    template = character_bible.CHARACTER_BIBLE_TEMPLATES[character_bible.CURRENT_TEMPLATE_VERSION]
-    return {key: f"test-{key.lower()}" for key in character_bible.extract_template_variables(template)}
-
-
-async def _create_character(auth_client, project_id, name="Test Character", variables=None):
+async def _create_character(auth_client, project_id, name="Test Character", prompt="A test prompt"):
     resp = await auth_client.post(
         f"/api/v1/projects/{project_id}/characters",
-        json={"name": name, "variables": variables or _fake_variables()},
+        json={"name": name, "prompt": prompt},
     )
     assert resp.status_code == 201
     return resp.json()
-
-
-# ---------------------------------------------------------------------------
-# character_bible unit tests
-# ---------------------------------------------------------------------------
-
-
-def test_extract_template_variables_returns_unique_ordered_names():
-    template = "A {{FOO}} and a {{BAR}} and another {{FOO}}."
-    assert character_bible.extract_template_variables(template) == ["FOO", "BAR"]
-
-
-def test_render_template_substitutes_all_placeholders():
-    template = "{{FOO}} likes {{BAR}}."
-    rendered = character_bible.render_template(template, {"FOO": "Alice", "BAR": "tea"})
-    assert rendered == "Alice likes tea."
-
-
-def test_render_template_raises_on_missing_variable():
-    template = "{{FOO}} likes {{BAR}}."
-    try:
-        character_bible.render_template(template, {"FOO": "Alice"})
-        assert False, "expected ValueError"
-    except ValueError as e:
-        assert "BAR" in str(e)
-
-
-# ---------------------------------------------------------------------------
-# template-variables endpoint
-# ---------------------------------------------------------------------------
-
-
-async def test_template_variables_endpoint(auth_client):
-    resp = await auth_client.get("/api/v1/characters/template-variables")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["template_version"] == "v1"
-    assert set(body["variables"]) == set(
-        character_bible.extract_template_variables(
-            character_bible.CHARACTER_BIBLE_TEMPLATES["v1"]
-        )
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -75,31 +28,17 @@ async def test_template_variables_endpoint(auth_client):
 
 
 async def test_create_character_success(auth_client, project_id):
-    character = await _create_character(auth_client, project_id)
+    character = await _create_character(auth_client, project_id, prompt="A character with red hair")
     assert character["name"] == "Test Character"
+    assert character["prompt"] == "A character with red hair"
     assert character["status"] == "draft"
-    assert character["template_version"] == "v1"
     assert character["sheet_image_path"] is None
 
 
-async def test_create_character_missing_variable_returns_422(auth_client, project_id):
-    variables = _fake_variables()
-    variables.pop(next(iter(variables)))
-    resp = await auth_client.post(
-        f"/api/v1/projects/{project_id}/characters",
-        json={"name": "Missing Var", "variables": variables},
-    )
-    assert resp.status_code == 422
-
-
-async def test_create_character_extra_variable_returns_422(auth_client, project_id):
-    variables = _fake_variables()
-    variables["UNKNOWN_FIELD"] = "x"
-    resp = await auth_client.post(
-        f"/api/v1/projects/{project_id}/characters",
-        json={"name": "Extra Var", "variables": variables},
-    )
-    assert resp.status_code == 422
+async def test_create_character_response_has_no_variables_or_template_version(auth_client, project_id):
+    character = await _create_character(auth_client, project_id)
+    assert "variables" not in character
+    assert "template_version" not in character
 
 
 async def test_list_characters_returns_created_characters(auth_client, project_id):
@@ -127,12 +66,9 @@ async def test_generate_returns_503_without_together_api_key(auth_client, projec
 
 async def test_generate_completes_and_saves_sheet_image(auth_client, project_id, monkeypatch):
     monkeypatch.setattr(settings, "TOGETHER_API_KEY", "fake-key")
-    monkeypatch.setattr(
-        together_ai_service,
-        "generate_character_sheet_image",
-        AsyncMock(return_value=FAKE_PNG_BYTES),
-    )
-    character = await _create_character(auth_client, project_id)
+    mock_generate = AsyncMock(return_value=FAKE_PNG_BYTES)
+    monkeypatch.setattr(together_ai_service, "generate_character_sheet_image", mock_generate)
+    character = await _create_character(auth_client, project_id, prompt="A character with red hair")
 
     resp = await auth_client.post(f"/api/v1/characters/{character['id']}/generate")
     assert resp.status_code == 202
@@ -144,6 +80,9 @@ async def test_generate_completes_and_saves_sheet_image(auth_client, project_id,
     assert body["status"] == "generated"
     assert body["sheet_image_path"] == f"character_sheets/{character['id']}.png"
     assert body["error_message"] is None
+
+    # テンプレートレンダリングを経由せず、character.prompt がそのまま渡されること
+    mock_generate.assert_awaited_once_with("A character with red hair")
 
     resp = await auth_client.get(f"/api/v1/characters/{character['id']}/sheet-image")
     assert resp.status_code == 200

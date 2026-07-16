@@ -1329,7 +1329,7 @@
           "characters"
         ],
         "summary": "Create Character",
-        "description": "キャラクターを作成する（name + variables）。variables は現行テンプレートの\nプレースホルダー集合と過不足なく一致している必要がある。",
+        "description": "キャラクターを作成する（name + prompt）。prompt はFLUXにそのまま渡す全文テキスト。",
         "operationId": "create_character_api_v1_projects__project_id__characters_post",
         "security": [
           {
@@ -1424,28 +1424,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/characters/template-variables": {
-      "get": {
-        "tags": [
-          "characters"
-        ],
-        "summary": "Get Template Variables",
-        "description": "現行のキャラクターバイブルテンプレートが持つプレースホルダー一覧を返す。",
-        "operationId": "get_template_variables_api_v1_characters_template_variables_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TemplateVariablesResponse"
                 }
               }
             }
@@ -1665,18 +1643,15 @@
             "type": "string",
             "title": "Name"
           },
-          "variables": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Variables"
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
           }
         },
         "type": "object",
         "required": [
           "name",
-          "variables"
+          "prompt"
         ],
         "title": "CharacterCreateRequest"
       },
@@ -1694,16 +1669,9 @@
             "type": "string",
             "title": "Name"
           },
-          "variables": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Variables"
-          },
-          "template_version": {
+          "prompt": {
             "type": "string",
-            "title": "Template Version"
+            "title": "Prompt"
           },
           "sheet_image_path": {
             "anyOf": [
@@ -1758,8 +1726,7 @@
           "id",
           "project_id",
           "name",
-          "variables",
-          "template_version",
+          "prompt",
           "sheet_image_path",
           "status",
           "error_message",
@@ -2631,27 +2598,6 @@
           "failed"
         ],
         "title": "StructureStatus"
-      },
-      "TemplateVariablesResponse": {
-        "properties": {
-          "template_version": {
-            "type": "string",
-            "title": "Template Version"
-          },
-          "variables": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Variables"
-          }
-        },
-        "type": "object",
-        "required": [
-          "template_version",
-          "variables"
-        ],
-        "title": "TemplateVariablesResponse"
       },
       "TokenResponse": {
         "properties": {

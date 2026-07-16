@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -28,8 +27,7 @@ class Character(Base):
         String(36), ForeignKey("projects.id"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    variables: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    template_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
     sheet_image_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     status: Mapped[CharacterStatus] = mapped_column(
         Enum(CharacterStatus, name="characterstatus"),

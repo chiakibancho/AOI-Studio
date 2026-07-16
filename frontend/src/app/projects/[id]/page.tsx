@@ -418,19 +418,6 @@ export default function ProjectDetailPage() {
     uploadMusicMutation.mutate(file)
   }
 
-  // Fetch character bible template variables (project-independent, static)
-  const { data: templateVariables } = useQuery<string[]>({
-    queryKey: ['character-template-variables'],
-    queryFn: async () => {
-      const res = await api.get<{ template_version: string; variables: string[] }>(
-        '/api/v1/characters/template-variables'
-      )
-      return res.data.variables
-    },
-    enabled: !!token,
-    staleTime: Infinity,
-  })
-
   // Fetch characters for this project. Polls every 2s while any character is generating.
   const { data: characters } = useQuery<Character[]>({
     queryKey: ['project-characters', projectId],
@@ -443,22 +430,24 @@ export default function ProjectDetailPage() {
       query.state.data?.some((c) => c.status === 'generating') ? 2000 : false,
   })
 
-  // Create character mutation
-  const createCharacterMutation = useMutation<Character, Error, { name: string; variables: Record<string, string> }>({
-    mutationFn: async ({ name, variables }) => {
+  // Create character mutation. On success, immediately kicks off generation
+  // so "Generate" in the form reads as one action to the user.
+  const createCharacterMutation = useMutation<Character, Error, { name: string; prompt: string }>({
+    mutationFn: async ({ name, prompt }) => {
       const res = await api.post<Character>(`/api/v1/projects/${projectId}/characters`, {
         name,
-        variables,
+        prompt,
       })
       return res.data
     },
-    onSuccess: () => {
+    onSuccess: (character) => {
       setCharacterCreateError(null)
       queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] })
+      handleGenerateCharacter(character.id)
     },
     onError: (err) => {
       if (axios.isAxiosError(err) && err.response?.status === 422) {
-        setCharacterCreateError('入力内容がテンプレートの項目と一致しません。')
+        setCharacterCreateError('入力内容を確認してください。')
       } else {
         setCharacterCreateError('キャラクターの作成に失敗しました。もう一度お試しください。')
       }
@@ -510,9 +499,9 @@ export default function ProjectDetailPage() {
     },
   })
 
-  function handleCreateCharacter(name: string, variables: Record<string, string>) {
+  function handleCreateCharacter(name: string, prompt: string) {
     setCharacterCreateError(null)
-    createCharacterMutation.mutate({ name, variables })
+    createCharacterMutation.mutate({ name, prompt })
   }
 
   function handleGenerateCharacter(characterId: string) {
@@ -700,7 +689,6 @@ export default function ProjectDetailPage() {
             <Card>
               <CharacterBibleView
                 characters={characters ?? []}
-                templateVariables={templateVariables ?? []}
                 onCreate={handleCreateCharacter}
                 onGenerate={handleGenerateCharacter}
                 onApprove={handleApproveCharacter}

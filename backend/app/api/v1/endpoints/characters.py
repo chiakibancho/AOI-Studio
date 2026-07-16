@@ -13,14 +13,8 @@ from app.core.security import get_current_user
 from app.api.v1.endpoints._common import _get_project_for_user
 from app.models.character import Character, CharacterStatus
 from app.models.user import User
-from app.schemas.character import CharacterCreateRequest, CharacterResponse, TemplateVariablesResponse
+from app.schemas.character import CharacterCreateRequest, CharacterResponse
 from app.services import together_ai_service
-from app.services.character_bible import (
-    CHARACTER_BIBLE_TEMPLATES,
-    CURRENT_TEMPLATE_VERSION,
-    extract_template_variables,
-    render_template,
-)
 
 router = APIRouter()
 standalone_router = APIRouter()
@@ -60,21 +54,6 @@ async def _get_character_for_user(
 
 
 # ---------------------------------------------------------------------------
-# Standalone: template variables
-# ---------------------------------------------------------------------------
-
-
-@standalone_router.get("/template-variables", response_model=TemplateVariablesResponse)
-async def get_template_variables():
-    """現行のキャラクターバイブルテンプレートが持つプレースホルダー一覧を返す。"""
-    template = CHARACTER_BIBLE_TEMPLATES[CURRENT_TEMPLATE_VERSION]
-    return TemplateVariablesResponse(
-        template_version=CURRENT_TEMPLATE_VERSION,
-        variables=extract_template_variables(template),
-    )
-
-
-# ---------------------------------------------------------------------------
 # Project-scoped: create / list characters
 # ---------------------------------------------------------------------------
 
@@ -86,27 +65,13 @@ async def create_character(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """キャラクターを作成する（name + variables）。variables は現行テンプレートの
-    プレースホルダー集合と過不足なく一致している必要がある。"""
+    """キャラクターを作成する（name + prompt）。prompt はFLUXにそのまま渡す全文テキスト。"""
     project = await _get_project_for_user(project_id, current_user, db)
-
-    template = CHARACTER_BIBLE_TEMPLATES[CURRENT_TEMPLATE_VERSION]
-    expected_keys = set(extract_template_variables(template))
-    got_keys = set(request.variables.keys())
-    if got_keys != expected_keys:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "variables がテンプレートのプレースホルダーと一致しません"
-                f"（期待: {sorted(expected_keys)}, 実際: {sorted(got_keys)}）"
-            ),
-        )
 
     character = Character(
         project_id=project.id,
         name=request.name,
-        variables=request.variables,
-        template_version=CURRENT_TEMPLATE_VERSION,
+        prompt=request.prompt,
         status=CharacterStatus.draft,
     )
     db.add(character)
@@ -196,10 +161,7 @@ async def run_character_generation(character_id: str) -> None:
                 logger.error("run_character_generation: character %s not found", character_id)
                 return
 
-            template = CHARACTER_BIBLE_TEMPLATES[character.template_version]
-            prompt = render_template(template, character.variables)
-
-            image_bytes = await together_ai_service.generate_character_sheet_image(prompt)
+            image_bytes = await together_ai_service.generate_character_sheet_image(character.prompt)
             ext = _sniff_image_extension(image_bytes)
 
             sheet_dir = MEDIA_ROOT / _SHEET_DIR
