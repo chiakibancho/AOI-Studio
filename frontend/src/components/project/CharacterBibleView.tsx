@@ -33,6 +33,68 @@ function formatLabel(variable: string): string {
     .join(' ')
 }
 
+/**
+ * "Name: Alice\nFace Shape: oval\n..." のような、フィールド名から始まる行の
+ * 塊をテンプレート変数のキーにマッピングする。既知フィールドで始まらない行は無視され、
+ * 値は次の既知フィールド行が現れるまでの複数行を結合したものになる。
+ * 戻り値には一致したキーのみを含む(未一致のフィールドはキーごと含まれない)。
+ */
+export function parseCharacterText(
+  text: string,
+  templateVariables: string[]
+): Record<string, string> {
+  const fieldLookup = new Map<string, string>()
+  fieldLookup.set('name', 'name')
+  for (const variable of templateVariables) {
+    fieldLookup.set(variable.toLowerCase().replace(/_/g, ' '), variable)
+  }
+  // より具体的な(長い)ラベルから優先的にマッチさせる
+  const labels = Array.from(fieldLookup.keys()).sort((a, b) => b.length - a.length)
+
+  const result: Record<string, string> = {}
+  let currentKey: string | null = null
+  let currentValueLines: string[] = []
+
+  function flush() {
+    if (currentKey) {
+      const value = currentValueLines.join('\n').trim()
+      if (value) {
+        result[currentKey] = value
+      }
+    }
+    currentValueLines = []
+  }
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    const lower = line.toLowerCase()
+
+    let matchedLabel: string | null = null
+    let rest = ''
+    for (const label of labels) {
+      if (lower.startsWith(label)) {
+        const nextChar = lower.charAt(label.length)
+        if (nextChar === '' || /[\s:\-=]/.test(nextChar)) {
+          matchedLabel = label
+          rest = line.slice(label.length).replace(/^[\s:\-=]+/, '')
+          break
+        }
+      }
+    }
+
+    if (matchedLabel) {
+      flush()
+      currentKey = fieldLookup.get(matchedLabel) as string
+      currentValueLines = rest ? [rest] : []
+    } else if (currentKey && line) {
+      currentValueLines.push(line)
+    }
+  }
+  flush()
+
+  return result
+}
+
 function CharacterSheetImage({ character }: { character: Character }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
 
@@ -145,6 +207,8 @@ export default function CharacterBibleView({
   const [showForm, setShowForm] = useState(characters.length === 0)
   const [name, setName] = useState('')
   const [variables, setVariables] = useState<Record<string, string>>({})
+  const [showBulkInput, setShowBulkInput] = useState(false)
+  const [bulkText, setBulkText] = useState('')
 
   function handleVariableChange(key: string, value: string) {
     setVariables((prev) => ({ ...prev, [key]: value }))
@@ -153,6 +217,16 @@ export default function CharacterBibleView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     onCreate(name, variables)
+  }
+
+  function handleApplyBulkText() {
+    const parsed = parseCharacterText(bulkText, templateVariables)
+    const { name: parsedName, ...parsedVariables } = parsed
+    if (parsedName) {
+      setName(parsedName)
+    }
+    setVariables((prev) => ({ ...prev, ...parsedVariables }))
+    setShowBulkInput(false)
   }
 
   return (
@@ -169,6 +243,34 @@ export default function CharacterBibleView({
           onSubmit={handleSubmit}
           className="rounded-xl border border-border bg-background p-4 flex flex-col gap-3"
         >
+          <div className="rounded-lg border border-border bg-surface overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowBulkInput((v) => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-text-secondary hover:text-text-primary"
+            >
+              <span>キャラ設定をテキストで貼り付け</span>
+              <span>{showBulkInput ? '▲' : '▼'}</span>
+            </button>
+            {showBulkInput && (
+              <div className="px-3 pb-3 flex flex-col gap-2">
+                <textarea
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  rows={8}
+                  aria-label="キャラ設定テキスト"
+                  placeholder={'Name: Alice\nFace Shape: oval\nEye Color: brown\n...'}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"
+                />
+                <div className="flex justify-end">
+                  <Button type="button" variant="secondary" size="sm" onClick={handleApplyBulkText}>
+                    フィールドに反映する
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="text-xs font-medium text-text-secondary mb-1 block">名前</label>
             <input
@@ -176,6 +278,7 @@ export default function CharacterBibleView({
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
+              aria-label="名前"
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
             />
           </div>
@@ -189,6 +292,7 @@ export default function CharacterBibleView({
                 value={variables[variable] ?? ''}
                 onChange={(e) => handleVariableChange(variable, e.target.value)}
                 required
+                aria-label={formatLabel(variable)}
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
               />
             </div>

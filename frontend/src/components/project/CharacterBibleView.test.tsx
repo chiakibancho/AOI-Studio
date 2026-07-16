@@ -106,4 +106,42 @@ describe('CharacterBibleView', () => {
 
     expect(screen.getByText('Together AI エラー: 500')).toBeInTheDocument()
   })
+
+  it('applies pasted text to matching fields via the bulk input section', () => {
+    renderView({ templateVariables: ['FACE_SHAPE', 'EYE_COLOR', 'ART_STYLE'] })
+
+    fireEvent.click(screen.getByRole('button', { name: /キャラ設定をテキストで貼り付け/ }))
+
+    const bulkTextarea = screen.getByRole('textbox', { name: 'キャラ設定テキスト' })
+    fireEvent.change(bulkTextarea, {
+      target: {
+        value: 'Name: Alice\nFace Shape: oval\nEye Color: brown\nArt Style: clean digital anime style',
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'フィールドに反映する' }))
+
+    expect(screen.getByRole('textbox', { name: '名前' })).toHaveValue('Alice')
+    expect(screen.getByRole('textbox', { name: 'Face Shape' })).toHaveValue('oval')
+    expect(screen.getByRole('textbox', { name: 'Art Style' })).toHaveValue('clean digital anime style')
+  })
+
+  it('does not clear fields left unmatched by the pasted text', () => {
+    renderView({ templateVariables: ['FACE_SHAPE', 'EYE_COLOR', 'ART_STYLE'] })
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Eye Color' }), {
+      target: { value: 'brown' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /キャラ設定をテキストで貼り付け/ }))
+    const bulkTextarea = screen.getByRole('textbox', { name: 'キャラ設定テキスト' })
+    fireEvent.change(bulkTextarea, {
+      target: {
+        value: 'Some unrelated preamble that matches no known field.\nFace Shape: oval',
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'フィールドに反映する' }))
+
+    expect(screen.getByRole('textbox', { name: 'Face Shape' })).toHaveValue('oval')
+    expect(screen.getByRole('textbox', { name: 'Eye Color' })).toHaveValue('brown')
+  })
 })
