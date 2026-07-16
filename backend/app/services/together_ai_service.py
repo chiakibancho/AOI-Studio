@@ -13,6 +13,21 @@ class ImageGenerationError(Exception):
     """Together AI 呼び出し、または生成画像のダウンロードに失敗した場合。"""
 
 
+def sniff_image_extension(data: bytes) -> str:
+    """画像バイト列の先頭シグネチャから拡張子を判定する。
+
+    Together AI は response_format="url" で返す画像の実体がJPEGのことがあり、
+    決め打ちで .png 保存すると Content-Type が実体と食い違うため。
+    """
+    if data.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    return ".png"
+
+
 async def generate_character_sheet_image(prompt: str) -> bytes:
     """Together AI (FLUX1.1-pro) でキャラクターのモデルシート画像を生成し、画像バイトを返す。
 

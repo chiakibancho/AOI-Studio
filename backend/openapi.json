@@ -1219,6 +1219,185 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/shooting-list/shots/{cut_number}/generate-image": {
+      "post": {
+        "tags": [
+          "phase3"
+        ],
+        "summary": "Generate Shot Image",
+        "description": "撮影リストの1ショットから絵コンテイラストをバックグラウンドで生成する（202）。\n\n結果は GET .../shots/{cut_number}/image-status でポーリングする。承認は不要で、\n生成完了後は即座に画像を利用できる。既存のショットに対する再実行は上書き生成する。",
+        "operationId": "generate_shot_image_api_v1_projects__project_id__shooting_list_shots__cut_number__generate_image_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "cut_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cut Number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShotImageGenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShotImageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/shooting-list/shots/{cut_number}/image-status": {
+      "get": {
+        "tags": [
+          "phase3"
+        ],
+        "summary": "Get Shot Image Status",
+        "description": "指定ショットの絵コンテイラスト生成状況を取得する（ポーリング用）。未生成なら404。",
+        "operationId": "get_shot_image_status_api_v1_projects__project_id__shooting_list_shots__cut_number__image_status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "cut_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cut Number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShotImageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/shooting-list/shots/{cut_number}/image": {
+      "get": {
+        "tags": [
+          "phase3"
+        ],
+        "summary": "Get Shot Image",
+        "description": "生成済み絵コンテイラスト画像をバイナリで配信する（認証必須）。",
+        "operationId": "get_shot_image_api_v1_projects__project_id__shooting_list_shots__cut_number__image_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "cut_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cut Number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/music-analysis": {
       "post": {
         "tags": [
@@ -2109,6 +2288,94 @@
           "failed"
         ],
         "title": "ShootingListStatus"
+      },
+      "ShotImageGenerateRequest": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "title": "Style",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ShotImageGenerateRequest"
+      },
+      "ShotImageResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "shooting_list_id": {
+            "type": "string",
+            "title": "Shooting List Id"
+          },
+          "cut_number": {
+            "type": "integer",
+            "title": "Cut Number"
+          },
+          "image_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Path"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ShotImageStatus"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "shooting_list_id",
+          "cut_number",
+          "image_path",
+          "status",
+          "error_message",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ShotImageResponse"
+      },
+      "ShotImageStatus": {
+        "type": "string",
+        "enum": [
+          "generating",
+          "generated",
+          "failed"
+        ],
+        "title": "ShotImageStatus"
       },
       "SignupRequest": {
         "properties": {
