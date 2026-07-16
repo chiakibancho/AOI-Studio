@@ -23,6 +23,21 @@ logger = logging.getLogger(__name__)
 _SHEET_DIR = "character_sheets"
 
 
+def _sniff_image_extension(data: bytes) -> str:
+    """画像バイト列の先頭シグネチャから拡張子を判定する。
+
+    Together AI は response_format="url" で返す画像の実体がJPEGのことがあり、
+    決め打ちで .png 保存すると Content-Type が実体と食い違うため。
+    """
+    if data.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    return ".png"
+
+
 async def _get_character_for_user(
     character_id: str,
     current_user: User,
@@ -147,7 +162,7 @@ async def run_character_generation(character_id: str) -> None:
                 return
 
             image_bytes = await together_ai_service.generate_character_sheet_image(character.prompt)
-            ext = together_ai_service.sniff_image_extension(image_bytes)
+            ext = _sniff_image_extension(image_bytes)
 
             sheet_dir = MEDIA_ROOT / _SHEET_DIR
             sheet_dir.mkdir(parents=True, exist_ok=True)

@@ -8,7 +8,6 @@ from app.models.spec_draft import SpecDraft
 from app.models.storyboard import Storyboard
 from app.models.music_analysis import MusicAnalysis
 from app.models.character import Character
-from app.models.shot_image import ShotImage
 
 __all__ = [
     "Base",
@@ -21,5 +20,4 @@ __all__ = [
     "Storyboard",
     "MusicAnalysis",
     "Character",
-    "ShotImage",
 ]

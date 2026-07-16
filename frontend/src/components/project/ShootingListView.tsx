@@ -1,11 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
-import type { ShootingList, ShootingListShot, ShotCategory, ShotImage } from '@/types'
+import type { ShootingList, ShootingListShot, ShotCategory } from '@/types'
 import { SHOT_CATEGORY_LABELS, SHOT_CATEGORY_ORDER } from '@/types'
-import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 
 interface ShootingListViewProps {
@@ -19,160 +15,10 @@ interface ShootingListViewProps {
   isApproving: boolean
 }
 
-const STYLE_PRESETS = [
-  { value: 'cinematic realism, Sony FX3 aesthetic', label: 'Cinematic Realism' },
-  { value: 'modern anime style, clean line art, vibrant colors, flat shading', label: 'Modern Anime' },
-  { value: 'watercolor illustration, soft colors', label: 'Watercolor' },
-  { value: 'custom', label: 'カスタム' },
-] as const
-
-function ShotImageGenerator({ projectId, cutNumber }: { projectId: string; cutNumber: number }) {
-  const queryClient = useQueryClient()
-  const [showStyle, setShowStyle] = useState(false)
-  const [stylePreset, setStylePreset] = useState<string>(STYLE_PRESETS[0].value)
-  const [customStyle, setCustomStyle] = useState('')
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-
-  const queryKey = ['shot-image-status', projectId, cutNumber]
-
-  const { data: shotImage } = useQuery<ShotImage | null>({
-    queryKey,
-    queryFn: async () => {
-      try {
-        const res = await api.get<ShotImage>(
-          `/api/v1/projects/${projectId}/shooting-list/shots/${cutNumber}/image-status`
-        )
-        return res.data
-      } catch (err) {
-        if (axios.isAxiosError(err) && err.response?.status === 404) {
-          return null
-        }
-        throw err
-      }
-    },
-    refetchInterval: (query) => (query.state.data?.status === 'generating' ? 2000 : false),
-  })
-
-  const generateMutation = useMutation<ShotImage, Error, void>({
-    mutationFn: async () => {
-      const style = stylePreset === 'custom' ? customStyle : stylePreset
-      const res = await api.post<ShotImage>(
-        `/api/v1/projects/${projectId}/shooting-list/shots/${cutNumber}/generate-image`,
-        { style }
-      )
-      return res.data
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKey, data)
-      setShowStyle(false)
-    },
-  })
-
-  useEffect(() => {
-    if (shotImage?.status !== 'generated') {
-      setImageUrl(null)
-      return
-    }
-    let objectUrl: string | null = null
-    let cancelled = false
-    api
-      .get(`/api/v1/projects/${projectId}/shooting-list/shots/${cutNumber}/image`, {
-        responseType: 'blob',
-      })
-      .then((res) => {
-        if (cancelled) return
-        objectUrl = URL.createObjectURL(res.data)
-        setImageUrl(objectUrl)
-      })
-      .catch(() => {
-        if (!cancelled) setImageUrl(null)
-      })
-    return () => {
-      cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }, [projectId, cutNumber, shotImage?.status])
-
-  const isGenerating = shotImage?.status === 'generating' || generateMutation.isPending
-
-  return (
-    <div className="mt-3 pt-3 border-t border-border flex flex-col gap-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => generateMutation.mutate()}
-          isLoading={isGenerating}
-          disabled={isGenerating}
-        >
-          {shotImage?.status === 'generated' ? '絵コンテ再生成' : '絵コンテ生成'}
-        </Button>
-        <button
-          type="button"
-          onClick={() => setShowStyle((v) => !v)}
-          className="text-xs font-medium text-text-secondary hover:text-text-primary"
-        >
-          Style {showStyle ? '▲' : '▼'}
-        </button>
-      </div>
-
-      {showStyle && (
-        <div className="flex flex-col gap-2 pl-1">
-          <select
-            value={stylePreset}
-            onChange={(e) => setStylePreset(e.target.value)}
-            aria-label="Style"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"
-          >
-            {STYLE_PRESETS.map((preset) => (
-              <option key={preset.value} value={preset.value}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
-          {stylePreset === 'custom' && (
-            <input
-              type="text"
-              value={customStyle}
-              onChange={(e) => setCustomStyle(e.target.value)}
-              placeholder="例: cinematic realism, Sony FX3 aesthetic"
-              aria-label="カスタムStyle"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"
-            />
-          )}
-        </div>
-      )}
-
-      {isGenerating && (
-        <div className="rounded-lg bg-surface border border-border p-4 flex flex-col items-center gap-2">
-          <div className="w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-          <p className="text-xs text-text-secondary">絵コンテを生成しています...</p>
-        </div>
-      )}
-
-      {shotImage?.status === 'failed' && shotImage.error_message && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2">
-          <p className="text-xs text-red-400">{shotImage.error_message}</p>
-        </div>
-      )}
-
-      {imageUrl && (
-        <img
-          src={imageUrl}
-          alt={`カット${cutNumber}の絵コンテイラスト`}
-          className="w-full rounded-lg border border-border"
-        />
-      )}
-    </div>
-  )
-}
-
 function ShotRow({
-  projectId,
   shot,
   onToggle,
 }: {
-  projectId: string
   shot: ShootingListShot
   onToggle: (completed: boolean) => void
 }) {
@@ -234,14 +80,12 @@ function ShotRow({
           </div>
         )}
       </div>
-
-      <ShotImageGenerator projectId={projectId} cutNumber={shot.cut_number} />
     </div>
   )
 }
 
 export default function ShootingListView({
-  projectId,
+  projectId: _projectId,
   shootingList,
   onRegenerate,
   onApprove,
@@ -328,7 +172,6 @@ export default function ShootingListView({
                 {shotsByCategory.get(category)!.map((shot) => (
                   <ShotRow
                     key={shot.cut_number}
-                    projectId={projectId}
                     shot={shot}
                     onToggle={(completed) => onToggleShot(shot.cut_number, completed)}
                   />

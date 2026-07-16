@@ -1,22 +1,18 @@
 import csv
 import io
 import logging
-import mimetypes
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
-from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.security import get_current_user
-from app.core.config import MEDIA_ROOT, settings
+from app.core.config import settings
 from app.api.v1.endpoints._common import _advance_project_status, _get_project_for_user
-from app.models.character import Character, CharacterStatus
 from app.models.project import Project, ProjectStatus
 from app.models.shooting_list import ShootingList, ShootingListStatus
-from app.models.shot_image import ShotImage, ShotImageStatus
 from app.models.storyboard import Storyboard, StoryboardStatus
 from app.models.user import User
 from app.models.video_spec import VideoSpec
@@ -25,8 +21,7 @@ from app.schemas.shooting_list import (
     ShootingListShotToggleRequest,
     ShootingListResponse,
 )
-from app.schemas.shot_image import ShotImageGenerateRequest, ShotImageResponse
-from app.services import ai_service, shot_prompt_service, together_ai_service
+from app.services import ai_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -341,215 +336,3 @@ async def toggle_shooting_list_shot(
     await db.flush()
     await db.refresh(shooting_list)
     return ShootingListResponse.model_validate(shooting_list)
-
-
-# ---------------------------------------------------------------------------
-# Shot image generation（絵コンテイラスト）
-# キャラクターバイブルの together_ai_service.generate_character_sheet_image をそのまま流用する。
-# 承認フローは無く、生成完了したら即表示。
-# ---------------------------------------------------------------------------
-
-_SHOT_IMAGE_DIR = "shot_images"
-
-
-async def _get_shot_and_shooting_list(
-    project_id: str,
-    cut_number: int,
-    current_user: User,
-    db: AsyncSession,
-) -> tuple[Project, ShootingList, dict]:
-    project = await _get_project_for_user(project_id, current_user, db)
-
-    result = await db.execute(
-        select(ShootingList)
-        .where(ShootingList.project_id == project.id)
-        .order_by(ShootingList.version.desc())
-        .limit(1)
-    )
-    shooting_list = result.scalar_one_or_none()
-    if shooting_list is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ShootingList not found")
-
-    shot = next((s for s in shooting_list.shots if s["cut_number"] == cut_number), None)
-    if shot is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"cut_number {cut_number} は見つかりません。",
-        )
-    return project, shooting_list, shot
-
-
-@router.post(
-    "/shooting-list/shots/{cut_number}/generate-image",
-    response_model=ShotImageResponse,
-    status_code=202,
-)
-async def generate_shot_image(
-    project_id: str,
-    cut_number: int,
-    request: ShotImageGenerateRequest,
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """撮影リストの1ショットから絵コンテイラストをバックグラウンドで生成する（202）。
-
-    結果は GET .../shots/{cut_number}/image-status でポーリングする。承認は不要で、
-    生成完了後は即座に画像を利用できる。既存のショットに対する再実行は上書き生成する。
-    """
-    if not settings.TOGETHER_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="TOGETHER_API_KEY が設定されていません。",
-        )
-
-    project, shooting_list, _shot = await _get_shot_and_shooting_list(
-        project_id, cut_number, current_user, db
-    )
-
-    existing_result = await db.execute(
-        select(ShotImage).where(
-            ShotImage.shooting_list_id == shooting_list.id,
-            ShotImage.cut_number == cut_number,
-        )
-    )
-    shot_image = existing_result.scalar_one_or_none()
-    if shot_image is not None and shot_image.status == ShotImageStatus.generating:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="既に生成処理が進行中です。",
-        )
-
-    if shot_image is None:
-        shot_image = ShotImage(
-            project_id=project.id,
-            shooting_list_id=shooting_list.id,
-            cut_number=cut_number,
-            status=ShotImageStatus.generating,
-        )
-        db.add(shot_image)
-    else:
-        shot_image.status = ShotImageStatus.generating
-        shot_image.error_message = None
-
-    await db.flush()
-    await db.refresh(shot_image)
-
-    background_tasks.add_task(
-        run_shot_image_generation, shot_image.id, project.id, cut_number, request.style
-    )
-
-    return ShotImageResponse.model_validate(shot_image)
-
-
-async def run_shot_image_generation(
-    shot_image_id: str, project_id: str, cut_number: int, style: str
-) -> None:
-    """バックグラウンドでFLUXプロンプトを組み立て、Together AIで絵コンテイラストを生成する。"""
-    async with AsyncSessionLocal() as db:
-        try:
-            shot_image = await db.get(ShotImage, shot_image_id)
-            if shot_image is None:
-                logger.error("run_shot_image_generation: shot_image %s not found", shot_image_id)
-                return
-
-            shooting_list = await db.get(ShootingList, shot_image.shooting_list_id)
-            if shooting_list is None:
-                raise ValueError("元の ShootingList が見つかりません")
-            shot = next((s for s in shooting_list.shots if s["cut_number"] == cut_number), None)
-            if shot is None:
-                raise ValueError(f"cut_number {cut_number} は見つかりません")
-
-            character_result = await db.execute(
-                select(Character)
-                .where(
-                    Character.project_id == project_id,
-                    Character.status == CharacterStatus.approved,
-                )
-                .order_by(Character.approved_at.desc())
-                .limit(1)
-            )
-            character = character_result.scalar_one_or_none()
-            character_prompt = character.prompt if character else ""
-
-            prompt = shot_prompt_service.generate_flux_prompt(shot, character_prompt, style)
-
-            image_bytes = await together_ai_service.generate_character_sheet_image(prompt)
-            ext = together_ai_service.sniff_image_extension(image_bytes)
-
-            image_dir = MEDIA_ROOT / _SHOT_IMAGE_DIR
-            image_dir.mkdir(parents=True, exist_ok=True)
-            image_path = image_dir / f"{shot_image.id}{ext}"
-            image_path.write_bytes(image_bytes)
-
-            shot_image.image_path = f"{_SHOT_IMAGE_DIR}/{shot_image.id}{ext}"
-            shot_image.status = ShotImageStatus.generated
-            shot_image.updated_at = datetime.now(timezone.utc)
-
-            await db.commit()
-        except Exception as e:
-            logger.exception("run_shot_image_generation failed for shot_image %s", shot_image_id)
-            await db.rollback()
-            shot_image = await db.get(ShotImage, shot_image_id)
-            if shot_image is not None:
-                shot_image.status = ShotImageStatus.failed
-                shot_image.error_message = str(e)
-                await db.commit()
-
-
-@router.get("/shooting-list/shots/{cut_number}/image-status", response_model=ShotImageResponse)
-async def get_shot_image_status(
-    project_id: str,
-    cut_number: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """指定ショットの絵コンテイラスト生成状況を取得する（ポーリング用）。未生成なら404。"""
-    _project, shooting_list, _shot = await _get_shot_and_shooting_list(
-        project_id, cut_number, current_user, db
-    )
-
-    result = await db.execute(
-        select(ShotImage).where(
-            ShotImage.shooting_list_id == shooting_list.id,
-            ShotImage.cut_number == cut_number,
-        )
-    )
-    shot_image = result.scalar_one_or_none()
-    if shot_image is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ShotImage not found")
-    return ShotImageResponse.model_validate(shot_image)
-
-
-@router.get("/shooting-list/shots/{cut_number}/image")
-async def get_shot_image(
-    project_id: str,
-    cut_number: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """生成済み絵コンテイラスト画像をバイナリで配信する（認証必須）。"""
-    _project, shooting_list, _shot = await _get_shot_and_shooting_list(
-        project_id, cut_number, current_user, db
-    )
-
-    result = await db.execute(
-        select(ShotImage).where(
-            ShotImage.shooting_list_id == shooting_list.id,
-            ShotImage.cut_number == cut_number,
-        )
-    )
-    shot_image = result.scalar_one_or_none()
-    if (
-        shot_image is None
-        or shot_image.image_path is None
-        or shot_image.status != ShotImageStatus.generated
-    ):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shot image not found")
-
-    image_path = MEDIA_ROOT / shot_image.image_path
-    if not image_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shot image not found")
-
-    media_type = mimetypes.guess_type(image_path.name)[0] or "application/octet-stream"
-    return FileResponse(image_path, media_type=media_type)

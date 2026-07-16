@@ -22,8 +22,6 @@ export type ShootingList = components['schemas']['ShootingListResponse']
 export type MusicAnalysis = components['schemas']['MusicAnalysisResponse']
 export type CharacterStatus = components['schemas']['CharacterStatus']
 export type Character = components['schemas']['CharacterResponse']
-export type ShotImageStatus = components['schemas']['ShotImageStatus']
-export type ShotImage = components['schemas']['ShotImageResponse']
 export type AuthResponse = components['schemas']['TokenResponse']
 
 export type SpecFormFields = Pick<

@@ -1,21 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { describe, expect, it, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import ShootingListView from './ShootingListView'
-import type { ShootingList, ShotImage } from '@/types'
-
-const NOT_FOUND_ERROR = { isAxiosError: true, response: { status: 404 }, message: 'Not Found' }
-
-vi.mock('@/lib/api', () => ({
-  default: {
-    get: vi.fn(() => Promise.reject(NOT_FOUND_ERROR)),
-    post: vi.fn(),
-  },
-}))
-
-import api from '@/lib/api'
-
-const mockedApi = api as unknown as { get: ReturnType<typeof vi.fn>; post: ReturnType<typeof vi.fn> }
+import type { ShootingList } from '@/types'
 
 const baseShootingList: ShootingList = {
   id: 'sl1',
@@ -71,31 +57,21 @@ function renderView(
     onDownloadCsv?: () => void
   } = {}
 ) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <ShootingListView
-        projectId="p1"
-        shootingList={{ ...baseShootingList, ...overrides }}
-        onRegenerate={vi.fn()}
-        onApprove={handlers.onApprove ?? vi.fn()}
-        onToggleShot={handlers.onToggleShot ?? vi.fn()}
-        onDownloadCsv={handlers.onDownloadCsv ?? vi.fn()}
-        isRegenerating={false}
-        isApproving={false}
-      />
-    </QueryClientProvider>
+    <ShootingListView
+      projectId="p1"
+      shootingList={{ ...baseShootingList, ...overrides }}
+      onRegenerate={vi.fn()}
+      onApprove={handlers.onApprove ?? vi.fn()}
+      onToggleShot={handlers.onToggleShot ?? vi.fn()}
+      onDownloadCsv={handlers.onDownloadCsv ?? vi.fn()}
+      isRegenerating={false}
+      isApproving={false}
+    />
   )
 }
 
 describe('ShootingListView', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockedApi.get.mockImplementation(() => Promise.reject(NOT_FOUND_ERROR))
-  })
-
   it('shows a loading state and no shots while pending', () => {
     renderView({ status: 'pending', shots: [] })
 
@@ -168,116 +144,5 @@ describe('ShootingListView', () => {
 
     fireEvent.click(screen.getByLabelText('カット1を撮影完了にする'))
     expect(onToggleShot).toHaveBeenCalledWith(1, true)
-  })
-})
-
-describe('ShootingListView shot image generation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockedApi.get.mockImplementation(() => Promise.reject(NOT_FOUND_ERROR))
-  })
-
-  it('renders a generate button and a collapsed Style toggle for each shot', () => {
-    renderView()
-
-    const generateButtons = screen.getAllByRole('button', { name: '絵コンテ生成' })
-    expect(generateButtons).toHaveLength(3)
-    expect(screen.getAllByText(/Style/).length).toBeGreaterThan(0)
-    expect(screen.queryByLabelText('Style')).not.toBeInTheDocument()
-  })
-
-  it('expands the Style section to reveal preset and custom options', () => {
-    renderView({ shots: [baseShootingList.shots[0]] })
-
-    fireEvent.click(screen.getByText(/Style ▼/))
-
-    const select = screen.getByLabelText('Style') as HTMLSelectElement
-    expect(select).toBeInTheDocument()
-    expect(select.value).toBe('cinematic realism, Sony FX3 aesthetic')
-
-    fireEvent.change(select, { target: { value: 'custom' } })
-    expect(screen.getByLabelText('カスタムStyle')).toBeInTheDocument()
-  })
-
-  it('calls generate-image with the selected style preset', async () => {
-    mockedApi.post.mockResolvedValue({
-      data: {
-        id: 'si1',
-        project_id: 'p1',
-        shooting_list_id: 'sl1',
-        cut_number: 1,
-        image_path: null,
-        status: 'generating',
-        error_message: null,
-        created_at: '2026-07-15T00:00:00Z',
-        updated_at: '2026-07-15T00:00:00Z',
-      } satisfies ShotImage,
-    })
-    renderView({ shots: [baseShootingList.shots[0]] })
-
-    fireEvent.click(screen.getByRole('button', { name: '絵コンテ生成' }))
-
-    await waitFor(() => {
-      expect(mockedApi.post).toHaveBeenCalledWith(
-        '/api/v1/projects/p1/shooting-list/shots/1/generate-image',
-        { style: 'cinematic realism, Sony FX3 aesthetic' }
-      )
-    })
-  })
-
-  it('shows a thumbnail once the shot image has generated', async () => {
-    mockedApi.get.mockImplementation((url: string) => {
-      if (url.endsWith('/image-status')) {
-        return Promise.resolve({
-          data: {
-            id: 'si1',
-            project_id: 'p1',
-            shooting_list_id: 'sl1',
-            cut_number: 1,
-            image_path: 'shot_images/si1.png',
-            status: 'generated',
-            error_message: null,
-            created_at: '2026-07-15T00:00:00Z',
-            updated_at: '2026-07-15T00:00:00Z',
-          } satisfies ShotImage,
-        })
-      }
-      if (url.endsWith('/image')) {
-        return Promise.resolve({ data: new Blob(['fake'], { type: 'image/png' }) })
-      }
-      return Promise.reject(NOT_FOUND_ERROR)
-    })
-
-    renderView({ shots: [baseShootingList.shots[0]] })
-
-    expect(
-      await screen.findByAltText('カット1の絵コンテイラスト')
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '絵コンテ再生成' })).toBeInTheDocument()
-  })
-
-  it('shows the error message when generation failed', async () => {
-    mockedApi.get.mockImplementation((url: string) => {
-      if (url.endsWith('/image-status')) {
-        return Promise.resolve({
-          data: {
-            id: 'si1',
-            project_id: 'p1',
-            shooting_list_id: 'sl1',
-            cut_number: 1,
-            image_path: null,
-            status: 'failed',
-            error_message: 'Together AI エラー: 500',
-            created_at: '2026-07-15T00:00:00Z',
-            updated_at: '2026-07-15T00:00:00Z',
-          } satisfies ShotImage,
-        })
-      }
-      return Promise.reject(NOT_FOUND_ERROR)
-    })
-
-    renderView({ shots: [baseShootingList.shots[0]] })
-
-    expect(await screen.findByText('Together AI エラー: 500')).toBeInTheDocument()
   })
 })
