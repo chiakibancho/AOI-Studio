@@ -33,17 +33,22 @@ interface AdvancedFields {
 
 const EMPTY_ADVANCED: AdvancedFields = { face: '', hair: '', body: '', clothes: '' }
 
-/** Advanced項目に値があれば "Label: value" の行としてpromptの末尾に改行して追記する。 */
+/**
+ * Advanced項目に値があれば prompt の末尾に追記する。
+ * 最終プロンプト = character.prompt
+ *                 + "\n\nFace: {face}"  (face入力がある場合のみ)
+ *                 + "\nHair: {hair}"    (hair入力がある場合のみ)
+ *                 + "\nBody: {body}"    (body入力がある場合のみ)
+ *                 + "\nClothes: {clothes}" (clothes入力がある場合のみ)
+ * Face の直前だけ空行を1つ挟み、以降は単一改行で連結する。
+ */
 function combinePrompt(basePrompt: string, advanced: AdvancedFields): string {
-  const extraLines = [
-    advanced.face && `Face: ${advanced.face}`,
-    advanced.hair && `Hair: ${advanced.hair}`,
-    advanced.body && `Body: ${advanced.body}`,
-    advanced.clothes && `Clothes: ${advanced.clothes}`,
-  ].filter((line): line is string => Boolean(line))
-
-  if (extraLines.length === 0) return basePrompt.trim()
-  return [basePrompt.trim(), ...extraLines].filter(Boolean).join('\n')
+  let result = basePrompt.trim()
+  if (advanced.face) result += `\n\nFace: ${advanced.face}`
+  if (advanced.hair) result += `\nHair: ${advanced.hair}`
+  if (advanced.body) result += `\nBody: ${advanced.body}`
+  if (advanced.clothes) result += `\nClothes: ${advanced.clothes}`
+  return result
 }
 
 function CharacterSheetImage({ character }: { character: Character }) {

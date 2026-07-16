@@ -84,8 +84,62 @@ describe('CharacterBibleView', () => {
 
     expect(onCreate).toHaveBeenCalledWith(
       'Alice',
-      'Base description.\nFace: oval, freckles\nBody: slim'
+      'Base description.\n\nFace: oval, freckles\nBody: slim'
     )
+  })
+
+  it('puts a blank line before Face but a single newline between subsequent Advanced fields', () => {
+    const onCreate = vi.fn()
+    renderView({ onCreate })
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'キャラクター名' }), {
+      target: { value: 'Alice' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character Prompt' }), {
+      target: { value: 'Base description.' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Face' }), {
+      target: { value: 'round' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Hair' }), {
+      target: { value: 'orange' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Body' }), {
+      target: { value: 'short' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Clothes' }), {
+      target: { value: 'raincoat' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    expect(onCreate).toHaveBeenCalledWith(
+      'Alice',
+      'Base description.\n\nFace: round\nHair: orange\nBody: short\nClothes: raincoat'
+    )
+  })
+
+  it('does not insert a blank line before Hair when Face is left empty', () => {
+    const onCreate = vi.fn()
+    renderView({ onCreate })
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'キャラクター名' }), {
+      target: { value: 'Alice' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character Prompt' }), {
+      target: { value: 'Base description.' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Hair' }), {
+      target: { value: 'orange' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    expect(onCreate).toHaveBeenCalledWith('Alice', 'Base description.\nHair: orange')
   })
 
   it('does not append anything when Advanced fields are left empty', () => {
