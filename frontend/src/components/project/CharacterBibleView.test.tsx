@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import CharacterBibleView from './CharacterBibleView'
+import CharacterBibleView, { parseCharacterText } from './CharacterBibleView'
 import type { Character } from '@/types'
 
 vi.mock('@/lib/api', () => ({
@@ -143,5 +143,92 @@ describe('CharacterBibleView', () => {
 
     expect(screen.getByRole('textbox', { name: 'Face Shape' })).toHaveValue('oval')
     expect(screen.getByRole('textbox', { name: 'Eye Color' })).toHaveValue('brown')
+  })
+})
+
+describe('parseCharacterText', () => {
+  const FULL_TEMPLATE_VARIABLES = [
+    'FACE_SHAPE',
+    'EYE_SHAPE',
+    'EYE_COLOR',
+    'EYEBROWS',
+    'NOSE',
+    'MOUTH',
+    'SKIN',
+    'HAIR_STYLE',
+    'HAIR_LENGTH',
+    'HAIR_COLOR',
+    'BANGS',
+    'HEIGHT',
+    'BODY_TYPE',
+    'SHOULDER_WIDTH',
+    'HAND_SIZE',
+    'LEG_LENGTH',
+    'TOP',
+    'BOTTOM',
+    'SHOES',
+    'ACCESSORIES',
+    'PRIMARY_COLOR',
+    'SECONDARY_COLOR',
+    'ACCENT_COLOR',
+    'ART_STYLE',
+  ]
+
+  it('separates SKIN from HAIR_STYLE even without a blank line between them', () => {
+    const text = [
+      'Face Shape Slim oval face...',
+      'Eye Color Deep gray-brown',
+      'Eyebrows Neat, slightly arched',
+      'Skin Fair, pale',
+      'Hair Style Medium-length black hair...',
+    ].join('\n')
+
+    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
+
+    expect(parsed.SKIN).toBe('Fair, pale')
+    expect(parsed.HAIR_STYLE).toBe('Medium-length black hair...')
+  })
+
+  it('separates fields even when pasted as a single line with no newlines', () => {
+    const text =
+      'Face Shape Slim oval face... Eye Color Deep gray-brown Eyebrows Neat, slightly arched ' +
+      'Skin Fair, pale Hair Style Medium-length black hair...'
+
+    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
+
+    expect(parsed.SKIN).toBe('Fair, pale')
+    expect(parsed.HAIR_STYLE).toBe('Medium-length black hair...')
+  })
+
+  it('recognizes a raw underscored template variable name as a field label too', () => {
+    const text = 'Skin Fair, pale\nHAIR_STYLE: Medium-length black hair...'
+
+    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
+
+    expect(parsed.SKIN).toBe('Fair, pale')
+    expect(parsed.HAIR_STYLE).toBe('Medium-length black hair...')
+  })
+
+  it('falls back to the line before Eye Color as EYE_SHAPE when the label is omitted', () => {
+    const text = [
+      'Face Shape Slim oval face',
+      'Slightly almond-shaped, upturned outer corners',
+      'Eye Color Deep gray-brown',
+    ].join('\n')
+
+    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
+
+    expect(parsed.EYE_SHAPE).toBe('Slightly almond-shaped, upturned outer corners')
+    expect(parsed.FACE_SHAPE).toBe('Slim oval face')
+    expect(parsed.EYE_COLOR).toBe('Deep gray-brown')
+  })
+
+  it('does not invent an EYE_SHAPE value when there is no orphan line before Eye Color', () => {
+    const text = ['Face Shape Slim oval face', 'Eye Color Deep gray-brown'].join('\n')
+
+    const parsed = parseCharacterText(text, FULL_TEMPLATE_VARIABLES)
+
+    expect(parsed.EYE_SHAPE).toBeUndefined()
+    expect(parsed.FACE_SHAPE).toBe('Slim oval face')
   })
 })

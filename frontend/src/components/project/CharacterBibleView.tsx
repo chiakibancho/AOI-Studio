@@ -33,11 +33,19 @@ function formatLabel(variable: string): string {
     .join(' ')
 }
 
+const SEPARATOR_CHARS = /[\s:\-=]/
+
 /**
- * "Name: Alice\nFace Shape: oval\n..." のような、フィールド名から始まる行の
- * 塊をテンプレート変数のキーにマッピングする。既知フィールドで始まらない行は無視され、
- * 値は次の既知フィールド行が現れるまでの複数行を結合したものになる。
- * 戻り値には一致したキーのみを含む(未一致のフィールドはキーごと含まれない)。
+ * "Name: Alice\nFace Shape: oval\n..." のような、フィールド名から始まる塊を
+ * テンプレート変数のキーにマッピングする。
+ *
+ * フィールド境界はテキスト全体を1つの文字列として走査して検出する（行頭に限定しない）。
+ * 貼り付け元（チャットのレンダリング結果など）によっては改行が失われ、ある項目の値の
+ * 直後に次のフィールド名が改行なしで連結されることがあるため、行単位ではなく
+ * 「既知フィールド名 + 区切り文字（コロン/スペース/ハイフン等）」の出現位置そのものを
+ * 境界として扱う。値は、ある境界の直後から次の境界の直前までとする。
+ *
+ * 戻り値には一致したキーのみを含む（未一致のフィールドはキーごと含まれない）。
  */
 export function parseCharacterText(
   text: string,
@@ -47,50 +55,69 @@ export function parseCharacterText(
   fieldLookup.set('name', 'name')
   for (const variable of templateVariables) {
     fieldLookup.set(variable.toLowerCase().replace(/_/g, ' '), variable)
+    // "HAIR_STYLE:" のようにテンプレート変数名がそのままラベルとして貼り付けられる
+    // ケースにも対応する（スペース区切りに加えてアンダースコア区切りも許容）。
+    fieldLookup.set(variable.toLowerCase(), variable)
   }
   // より具体的な(長い)ラベルから優先的にマッチさせる
   const labels = Array.from(fieldLookup.keys()).sort((a, b) => b.length - a.length)
 
-  const result: Record<string, string> = {}
-  let currentKey: string | null = null
-  let currentValueLines: string[] = []
+  const lowerText = text.toLowerCase()
 
-  function flush() {
-    if (currentKey) {
-      const value = currentValueLines.join('\n').trim()
-      if (value) {
-        result[currentKey] = value
+  interface Boundary {
+    key: string
+    matchStart: number
+    valueStart: number
+  }
+  const boundaries: Boundary[] = []
+
+  for (let i = 0; i < lowerText.length; i++) {
+    // 直前が英字なら単語の途中なのでラベルの開始位置として扱わない
+    if (i > 0 && /[a-z]/.test(lowerText[i - 1])) continue
+
+    for (const label of labels) {
+      if (!lowerText.startsWith(label, i)) continue
+      const afterLabel = i + label.length
+      const nextChar = lowerText.charAt(afterLabel)
+      if (nextChar !== '' && !SEPARATOR_CHARS.test(nextChar)) continue
+
+      let valueStart = afterLabel
+      while (valueStart < text.length && SEPARATOR_CHARS.test(lowerText[valueStart])) {
+        valueStart++
       }
+      boundaries.push({ key: fieldLookup.get(label) as string, matchStart: i, valueStart })
+      break
     }
-    currentValueLines = []
   }
 
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    const lower = line.toLowerCase()
+  const result: Record<string, string> = {}
+  for (let i = 0; i < boundaries.length; i++) {
+    const boundary = boundaries[i]
+    const end = i + 1 < boundaries.length ? boundaries[i + 1].matchStart : text.length
+    const value = text.slice(boundary.valueStart, end).trim()
+    if (value) {
+      result[boundary.key] = value
+    }
+  }
 
-    let matchedLabel: string | null = null
-    let rest = ''
-    for (const label of labels) {
-      if (lower.startsWith(label)) {
-        const nextChar = lower.charAt(label.length)
-        if (nextChar === '' || /[\s:\-=]/.test(nextChar)) {
-          matchedLabel = label
-          rest = line.slice(label.length).replace(/^[\s:\-=]+/, '')
-          break
+  // EYE_SHAPE フォールバック: 貼り付け元のテキストで "Eye Shape" のラベル自体が
+  // 省略され、Eye Color の直前の行が実質的な目の形状の説明になっているケースがある。
+  // その場合、直前フィールドの値の最終行を EYE_SHAPE として切り出す。
+  if (templateVariables.includes('EYE_SHAPE') && !('EYE_SHAPE' in result)) {
+    const eyeColorIndex = boundaries.findIndex((b) => b.key === 'EYE_COLOR')
+    if (eyeColorIndex > 0) {
+      const prevKey = boundaries[eyeColorIndex - 1].key
+      const prevValue = result[prevKey]
+      if (prevValue && prevValue.includes('\n')) {
+        const lines = prevValue.split('\n')
+        const lastLine = (lines.pop() as string).trim()
+        if (lastLine) {
+          result.EYE_SHAPE = lastLine
+          result[prevKey] = lines.join('\n').trim()
         }
       }
     }
-
-    if (matchedLabel) {
-      flush()
-      currentKey = fieldLookup.get(matchedLabel) as string
-      currentValueLines = rest ? [rest] : []
-    } else if (currentKey && line) {
-      currentValueLines.push(line)
-    }
   }
-  flush()
 
   return result
 }
