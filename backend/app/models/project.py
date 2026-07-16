@@ -73,3 +73,4 @@ class Project(Base):
     spec_drafts: Mapped[list["SpecDraft"]] = relationship("SpecDraft", back_populates="project", order_by="SpecDraft.version.desc()")  # noqa: F821
     storyboards: Mapped[list["Storyboard"]] = relationship("Storyboard", back_populates="project", order_by="Storyboard.version.desc()")  # noqa: F821
     shooting_lists: Mapped[list["ShootingList"]] = relationship("ShootingList", back_populates="project", order_by="ShootingList.version.desc()")  # noqa: F821
+    characters: Mapped[list["Character"]] = relationship("Character", back_populates="project", order_by="Character.created_at")  # noqa: F821

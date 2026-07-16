@@ -1322,6 +1322,325 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{project_id}/characters": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Create Character",
+        "description": "キャラクターを作成する（name + variables）。variables は現行テンプレートの\nプレースホルダー集合と過不足なく一致している必要がある。",
+        "operationId": "create_character_api_v1_projects__project_id__characters_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "List Characters",
+        "description": "プロジェクトのキャラクター一覧を作成日時の昇順で返す。",
+        "operationId": "list_characters_api_v1_projects__project_id__characters_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterResponse"
+                  },
+                  "title": "Response List Characters Api V1 Projects  Project Id  Characters Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/characters/template-variables": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get Template Variables",
+        "description": "現行のキャラクターバイブルテンプレートが持つプレースホルダー一覧を返す。",
+        "operationId": "get_template_variables_api_v1_characters_template_variables_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateVariablesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/characters/{character_id}": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get Character",
+        "operationId": "get_character_api_v1_characters__character_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/characters/{character_id}/generate": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Generate Character Sheet",
+        "description": "モデルシート生成をバックグラウンドで開始する。結果は GET /characters/{id} でポーリングする。\n\n承認済みキャラクターは再生成不可。生成中の再実行は409。それ以外（draft/generated/failed）は\ngenerate の再実行で上書き生成する。",
+        "operationId": "generate_character_sheet_api_v1_characters__character_id__generate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/characters/{character_id}/sheet-image": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get Character Sheet Image",
+        "description": "生成済みモデルシート画像をバイナリで配信する（認証必須）。",
+        "operationId": "get_character_sheet_image_api_v1_characters__character_id__sheet_image_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/characters/{character_id}/approve": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Approve Character",
+        "description": "生成済みモデルシートを承認する。承認後は再生成できなくなる。",
+        "operationId": "approve_character_api_v1_characters__character_id__approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1339,6 +1658,127 @@
           "file"
         ],
         "title": "Body_analyze_music_api_v1_projects__project_id__music_analysis_post"
+      },
+      "CharacterCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "variables": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Variables"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "variables"
+        ],
+        "title": "CharacterCreateRequest"
+      },
+      "CharacterResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "variables": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Variables"
+          },
+          "template_version": {
+            "type": "string",
+            "title": "Template Version"
+          },
+          "sheet_image_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet Image Path"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CharacterStatus"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "variables",
+          "template_version",
+          "sheet_image_path",
+          "status",
+          "error_message",
+          "approved_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CharacterResponse"
+      },
+      "CharacterStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "generating",
+          "generated",
+          "failed",
+          "approved"
+        ],
+        "title": "CharacterStatus"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2191,6 +2631,27 @@
           "failed"
         ],
         "title": "StructureStatus"
+      },
+      "TemplateVariablesResponse": {
+        "properties": {
+          "template_version": {
+            "type": "string",
+            "title": "Template Version"
+          },
+          "variables": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Variables"
+          }
+        },
+        "type": "object",
+        "required": [
+          "template_version",
+          "variables"
+        ],
+        "title": "TemplateVariablesResponse"
       },
       "TokenResponse": {
         "properties": {

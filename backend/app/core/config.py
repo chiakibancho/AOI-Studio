@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+MEDIA_ROOT = Path(__file__).resolve().parent.parent.parent / "media"
 
 
 class Settings(BaseSettings):
@@ -9,6 +13,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     ANTHROPIC_API_KEY: str = ""
+    TOGETHER_API_KEY: str = ""
 
     class Config:
         env_file = ".env"

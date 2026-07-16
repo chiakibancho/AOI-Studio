@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields, Storyboard, ShootingList, MusicAnalysis } from '@/types'
+import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields, Storyboard, ShootingList, MusicAnalysis, Character } from '@/types'
 import { VIDEO_TYPE_LABELS, PROJECT_STATUS_LABELS } from '@/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -18,6 +18,7 @@ import SpecDraftView from '@/components/project/SpecDraftView'
 import StoryboardView from '@/components/project/StoryboardView'
 import ShootingListView from '@/components/project/ShootingListView'
 import MusicAnalysisView from '@/components/project/MusicAnalysisView'
+import CharacterBibleView from '@/components/project/CharacterBibleView'
 
 const PHASE_STEPS = [
   { key: 'setup', label: '1. 動画仕様' },
@@ -46,6 +47,9 @@ export default function ProjectDetailPage() {
   const [storyboardReviseError, setStoryboardReviseError] = useState<string | null>(null)
   const [shootingListError, setShootingListError] = useState<string | null>(null)
   const [musicAnalysisError, setMusicAnalysisError] = useState<string | null>(null)
+  const [characterCreateError, setCharacterCreateError] = useState<string | null>(null)
+  const [characterActionError, setCharacterActionError] = useState<string | null>(null)
+  const [pendingCharacterId, setPendingCharacterId] = useState<string | null>(null)
   const [specSaved, setSpecSaved] = useState(false)
   const [specDraftError, setSpecDraftError] = useState<string | null>(null)
   const [specEntryMode, setSpecEntryMode] = useState<'ai' | 'manual'>('ai')
@@ -414,6 +418,115 @@ export default function ProjectDetailPage() {
     uploadMusicMutation.mutate(file)
   }
 
+  // Fetch character bible template variables (project-independent, static)
+  const { data: templateVariables } = useQuery<string[]>({
+    queryKey: ['character-template-variables'],
+    queryFn: async () => {
+      const res = await api.get<{ template_version: string; variables: string[] }>(
+        '/api/v1/characters/template-variables'
+      )
+      return res.data.variables
+    },
+    enabled: !!token,
+    staleTime: Infinity,
+  })
+
+  // Fetch characters for this project. Polls every 2s while any character is generating.
+  const { data: characters } = useQuery<Character[]>({
+    queryKey: ['project-characters', projectId],
+    queryFn: async () => {
+      const res = await api.get<Character[]>(`/api/v1/projects/${projectId}/characters`)
+      return res.data
+    },
+    enabled: !!token && !!projectId,
+    refetchInterval: (query) =>
+      query.state.data?.some((c) => c.status === 'generating') ? 2000 : false,
+  })
+
+  // Create character mutation
+  const createCharacterMutation = useMutation<Character, Error, { name: string; variables: Record<string, string> }>({
+    mutationFn: async ({ name, variables }) => {
+      const res = await api.post<Character>(`/api/v1/projects/${projectId}/characters`, {
+        name,
+        variables,
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      setCharacterCreateError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] })
+    },
+    onError: (err) => {
+      if (axios.isAxiosError(err) && err.response?.status === 422) {
+        setCharacterCreateError('入力内容がテンプレートの項目と一致しません。')
+      } else {
+        setCharacterCreateError('キャラクターの作成に失敗しました。もう一度お試しください。')
+      }
+    },
+  })
+
+  // Generate character sheet mutation
+  const generateCharacterMutation = useMutation<Character, Error, string>({
+    mutationFn: async (characterId) => {
+      const res = await api.post<Character>(`/api/v1/characters/${characterId}/generate`)
+      return res.data
+    },
+    onSuccess: () => {
+      setCharacterActionError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] })
+    },
+    onError: (err) => {
+      setPendingCharacterId(null)
+      if (axios.isAxiosError(err) && err.response?.status === 503) {
+        setCharacterActionError('AI画像生成APIキーが設定されていません。管理者にお問い合わせください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setCharacterActionError('既に生成処理が進行中です。しばらくお待ちください。')
+      } else if (axios.isAxiosError(err) && err.response?.status === 400) {
+        setCharacterActionError('承認済みのキャラクターは再生成できません。')
+      } else {
+        setCharacterActionError('モデルシートの生成に失敗しました。もう一度お試しください。')
+      }
+    },
+    onSettled: () => {
+      setPendingCharacterId(null)
+    },
+  })
+
+  // Approve character mutation
+  const approveCharacterMutation = useMutation<Character, Error, string>({
+    mutationFn: async (characterId) => {
+      const res = await api.post<Character>(`/api/v1/characters/${characterId}/approve`)
+      return res.data
+    },
+    onSuccess: () => {
+      setCharacterActionError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] })
+    },
+    onError: () => {
+      setCharacterActionError('承認に失敗しました。もう一度お試しください。')
+    },
+    onSettled: () => {
+      setPendingCharacterId(null)
+    },
+  })
+
+  function handleCreateCharacter(name: string, variables: Record<string, string>) {
+    setCharacterCreateError(null)
+    createCharacterMutation.mutate({ name, variables })
+  }
+
+  function handleGenerateCharacter(characterId: string) {
+    setCharacterActionError(null)
+    setPendingCharacterId(characterId)
+    generateCharacterMutation.mutate(characterId)
+  }
+
+  function handleApproveCharacter(characterId: string) {
+    setCharacterActionError(null)
+    setPendingCharacterId(characterId)
+    approveCharacterMutation.mutate(characterId)
+  }
+
   function handleSpecSaved(savedSpec: VideoSpec) {
     queryClient.setQueryData(['project-spec', projectId], savedSpec)
     setSpecSaved(true)
@@ -582,6 +695,21 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Character Bible (独立機能: フェーズゲーティングの対象外で常に表示) */}
+            <Card>
+              <CharacterBibleView
+                characters={characters ?? []}
+                templateVariables={templateVariables ?? []}
+                onCreate={handleCreateCharacter}
+                onGenerate={handleGenerateCharacter}
+                onApprove={handleApproveCharacter}
+                isCreating={createCharacterMutation.isPending}
+                createError={characterCreateError}
+                actionError={characterActionError}
+                pendingCharacterId={pendingCharacterId}
+              />
+            </Card>
 
             {/* Phase stepper */}
             <div className="flex items-center gap-0 overflow-x-auto pb-1">

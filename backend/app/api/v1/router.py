@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, projects, phase1, phase2, phase3, music
+from app.api.v1.endpoints import auth, projects, phase1, phase2, phase3, music, characters
 
 api_router = APIRouter()
 
@@ -25,4 +25,14 @@ api_router.include_router(
     music.router,
     prefix="/projects/{project_id}",
     tags=["music"],
+)
+api_router.include_router(
+    characters.router,
+    prefix="/projects/{project_id}",
+    tags=["characters"],
+)
+api_router.include_router(
+    characters.standalone_router,
+    prefix="/characters",
+    tags=["characters"],
 )
