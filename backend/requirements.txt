@@ -12,3 +12,4 @@ redis==5.2.0
 httpx==0.28.0
 pydantic[email]>=2.7.0
 anthropic>=0.40.0
+essentia==2.1b6.dev1389

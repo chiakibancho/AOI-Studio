@@ -6,5 +6,16 @@ from app.models.video_spec import VideoSpec
 from app.models.structure import Structure
 from app.models.spec_draft import SpecDraft
 from app.models.storyboard import Storyboard
+from app.models.music_analysis import MusicAnalysis
 
-__all__ = ["Base", "Organization", "User", "Project", "VideoSpec", "Structure", "SpecDraft", "Storyboard"]
+__all__ = [
+    "Base",
+    "Organization",
+    "User",
+    "Project",
+    "VideoSpec",
+    "Structure",
+    "SpecDraft",
+    "Storyboard",
+    "MusicAnalysis",
+]

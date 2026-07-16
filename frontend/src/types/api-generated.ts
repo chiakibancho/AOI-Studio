@@ -401,6 +401,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/shooting-list/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Shooting List Csv
+         * @description 最新 ShootingList を CSV（UTF-8 BOM付き）でダウンロードする。
+         */
+        get: operations["export_shooting_list_csv_api_v1_projects__project_id__shooting_list_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/shooting-list/approve": {
         parameters: {
             query?: never;
@@ -441,10 +461,44 @@ export interface paths {
         patch: operations["toggle_shooting_list_shot_api_v1_projects__project_id__shooting_list_shots__cut_number__patch"];
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/music-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Music Analysis
+         * @description 保存済みの音楽解析結果を取得する（再アップロード不要）。なければ404。
+         */
+        get: operations["get_music_analysis_api_v1_projects__project_id__music_analysis_get"];
+        put?: never;
+        /**
+         * Analyze Music
+         * @description アップロードされた音声ファイル（mp3/wav）をessentiaで解析し、結果をDBに保存して返す。
+         *
+         *     プロジェクトごとに1件（再アップロードで上書き）。
+         */
+        post: operations["analyze_music_api_v1_projects__project_id__music_analysis_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_analyze_music_api_v1_projects__project_id__music_analysis_post */
+        Body_analyze_music_api_v1_projects__project_id__music_analysis_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -459,6 +513,28 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MusicAnalysisResponse */
+        MusicAnalysisResponse: {
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Filename */
+            filename: string;
+            /** Bpm */
+            bpm: number;
+            /** Key */
+            key: string;
+            /** Scale */
+            scale: string;
+            /** Key Strength */
+            key_strength: number;
+            /**
+             * Analyzed At
+             * Format: date-time
+             */
+            analyzed_at: string;
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -1540,6 +1616,37 @@ export interface operations {
             };
         };
     };
+    export_shooting_list_csv_api_v1_projects__project_id__shooting_list_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     approve_shooting_list_api_v1_projects__project_id__shooting_list_approve_post: {
         parameters: {
             query?: never;
@@ -1594,6 +1701,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShootingListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_music_analysis_api_v1_projects__project_id__music_analysis_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MusicAnalysisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_music_api_v1_projects__project_id__music_analysis_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_analyze_music_api_v1_projects__project_id__music_analysis_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MusicAnalysisResponse"];
                 };
             };
             /** @description Validation Error */

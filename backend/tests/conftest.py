@@ -20,7 +20,8 @@ async def _clean_db():
     async with AsyncSessionLocal() as db:
         await db.execute(
             text(
-                "TRUNCATE TABLE storyboards, spec_drafts, structures, video_specs, projects, users, organizations "
+                "TRUNCATE TABLE storyboards, spec_drafts, structures, video_specs, music_analyses, "
+                "projects, users, organizations "
                 "RESTART IDENTITY CASCADE"
             )
         )

@@ -1058,6 +1058,52 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/shooting-list/export": {
+      "get": {
+        "tags": [
+          "phase3"
+        ],
+        "summary": "Export Shooting List Csv",
+        "description": "最新 ShootingList を CSV（UTF-8 BOM付き）でダウンロードする。",
+        "operationId": "export_shooting_list_csv_api_v1_projects__project_id__shooting_list_export_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/shooting-list/approve": {
       "post": {
         "tags": [
@@ -1172,10 +1218,128 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{project_id}/music-analysis": {
+      "post": {
+        "tags": [
+          "music"
+        ],
+        "summary": "Analyze Music",
+        "description": "アップロードされた音声ファイル（mp3/wav）をessentiaで解析し、結果をDBに保存して返す。\n\nプロジェクトごとに1件（再アップロードで上書き）。",
+        "operationId": "analyze_music_api_v1_projects__project_id__music_analysis_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_analyze_music_api_v1_projects__project_id__music_analysis_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MusicAnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "music"
+        ],
+        "summary": "Get Music Analysis",
+        "description": "保存済みの音楽解析結果を取得する（再アップロード不要）。なければ404。",
+        "operationId": "get_music_analysis_api_v1_projects__project_id__music_analysis_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MusicAnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "Body_analyze_music_api_v1_projects__project_id__music_analysis_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_analyze_music_api_v1_projects__project_id__music_analysis_post"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1207,6 +1371,55 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "MusicAnalysisResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "bpm": {
+            "type": "number",
+            "title": "Bpm"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "scale": {
+            "type": "string",
+            "title": "Scale"
+          },
+          "key_strength": {
+            "type": "number",
+            "title": "Key Strength"
+          },
+          "analyzed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Analyzed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "filename",
+          "bpm",
+          "key",
+          "scale",
+          "key_strength",
+          "analyzed_at"
+        ],
+        "title": "MusicAnalysisResponse"
       },
       "ProjectCreate": {
         "properties": {

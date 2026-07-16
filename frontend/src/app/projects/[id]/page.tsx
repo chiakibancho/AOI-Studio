@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields, Storyboard, ShootingList } from '@/types'
+import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields, Storyboard, ShootingList, MusicAnalysis } from '@/types'
 import { VIDEO_TYPE_LABELS, PROJECT_STATUS_LABELS } from '@/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -17,6 +17,7 @@ import SpecAnalystInput from '@/components/project/SpecAnalystInput'
 import SpecDraftView from '@/components/project/SpecDraftView'
 import StoryboardView from '@/components/project/StoryboardView'
 import ShootingListView from '@/components/project/ShootingListView'
+import MusicAnalysisView from '@/components/project/MusicAnalysisView'
 
 const PHASE_STEPS = [
   { key: 'setup', label: '1. 動画仕様' },
@@ -44,6 +45,7 @@ export default function ProjectDetailPage() {
   const [storyboardError, setStoryboardError] = useState<string | null>(null)
   const [storyboardReviseError, setStoryboardReviseError] = useState<string | null>(null)
   const [shootingListError, setShootingListError] = useState<string | null>(null)
+  const [musicAnalysisError, setMusicAnalysisError] = useState<string | null>(null)
   const [specSaved, setSpecSaved] = useState(false)
   const [specDraftError, setSpecDraftError] = useState<string | null>(null)
   const [specEntryMode, setSpecEntryMode] = useState<'ai' | 'manual'>('ai')
@@ -364,6 +366,53 @@ export default function ProjectDetailPage() {
       queryClient.setQueryData(['project-shooting-list', projectId], data)
     },
   })
+
+  // Fetch music analysis (404 → null)
+  const { data: musicAnalysis } = useQuery<MusicAnalysis | null>({
+    queryKey: ['project-music-analysis', projectId],
+    queryFn: async () => {
+      try {
+        const res = await api.get<MusicAnalysis>(`/api/v1/projects/${projectId}/music-analysis`)
+        return res.data
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          return null
+        }
+        throw err
+      }
+    },
+    enabled: !!token && !!projectId,
+  })
+
+  // Upload & analyze BGM
+  const uploadMusicMutation = useMutation<MusicAnalysis, Error, File>({
+    mutationFn: async (file) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await api.post<MusicAnalysis>(
+        `/api/v1/projects/${projectId}/music-analysis`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
+      return res.data
+    },
+    onSuccess: (data) => {
+      setMusicAnalysisError(null)
+      queryClient.setQueryData(['project-music-analysis', projectId], data)
+    },
+    onError: (err) => {
+      if (axios.isAxiosError(err) && err.response?.status === 422) {
+        setMusicAnalysisError('非対応の音声フォーマットです。mp3またはwavファイルをアップロードしてください。')
+      } else {
+        setMusicAnalysisError('BGM解析に失敗しました。もう一度お試しください。')
+      }
+    },
+  })
+
+  function handleUploadMusic(file: File) {
+    setMusicAnalysisError(null)
+    uploadMusicMutation.mutate(file)
+  }
 
   function handleSpecSaved(savedSpec: VideoSpec) {
     queryClient.setQueryData(['project-spec', projectId], savedSpec)
@@ -762,6 +811,18 @@ export default function ProjectDetailPage() {
                     </Button>
                   </div>
                 </div>
+              )}
+
+              {/* BGM analysis */}
+              {storyboard && shootingList && (
+                <Card>
+                  <MusicAnalysisView
+                    musicAnalysis={musicAnalysis ?? null}
+                    onUpload={handleUploadMusic}
+                    isUploading={uploadMusicMutation.isPending}
+                    error={musicAnalysisError}
+                  />
+                </Card>
               )}
 
               {/* Shooting list view */}
