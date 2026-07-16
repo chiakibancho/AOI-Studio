@@ -21,7 +21,7 @@ async def _clean_db():
         await db.execute(
             text(
                 "TRUNCATE TABLE storyboards, spec_drafts, structures, video_specs, music_analyses, "
-                "characters, projects, users, organizations "
+                "characters, shot_images, projects, users, organizations "
                 "RESTART IDENTITY CASCADE"
             )
         )
