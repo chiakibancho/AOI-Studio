@@ -3,7 +3,10 @@ import httpx
 from app.core.config import settings
 
 TOGETHER_IMAGE_ENDPOINT = "https://api.together.xyz/v1/images/generations"
-_MODEL = "black-forest-labs/FLUX.1-dev"
+# black-forest-labs/FLUX.1-dev はTogether AI上でサーバーレス提供されておらず、
+# 専用エンドポイントの明示的な起動（継続課金）が必要なため、サーバーレスで
+# 即利用可能な FLUX1.1-pro を使用する。
+_MODEL = "black-forest-labs/FLUX.1.1-pro"
 
 
 class ImageGenerationError(Exception):
@@ -11,7 +14,7 @@ class ImageGenerationError(Exception):
 
 
 async def generate_character_sheet_image(prompt: str) -> bytes:
-    """Together AI (FLUX.1-dev) でキャラクターのモデルシート画像を生成し、画像バイトを返す。
+    """Together AI (FLUX1.1-pro) でキャラクターのモデルシート画像を生成し、画像バイトを返す。
 
     Together AI が返す画像URLは有効期限があるため、レスポンスを受け取ったこのリクエストの
     中で即座にダウンロードする（呼び出し側でURLをそのまま保存しない）。
@@ -24,8 +27,8 @@ async def generate_character_sheet_image(prompt: str) -> bytes:
                 json={
                     "model": _MODEL,
                     "prompt": prompt,
-                    "width": 1536,
-                    "height": 1024,
+                    "width": 1440,
+                    "height": 960,
                     "steps": 28,
                     "n": 1,
                     "response_format": "url",
