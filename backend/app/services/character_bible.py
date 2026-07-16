@@ -2,30 +2,42 @@ import re
 
 _PLACEHOLDER_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 
-_CHARACTER_BIBLE_V1 = """\
-You are generating a character reference sheet for use as a consistent visual identity \
-across multiple illustrated shots. Follow every instruction below precisely.
+_CHARACTER_BIBLE_V1 = """
+# ============================
+# FLUX CHARACTER BIBLE v1
+# ============================
 
-## Character Definition
+## CHARACTER DEFINITION
+A single character with the following fixed appearance:
 
-A person with a {{FACE_SHAPE}} face shape, {{EYE_COLOR}} eyes, and {{HAIR_STYLE}} hair. \
-Build: {{BODY_TYPE}}. Wearing: {{TOP}}, primarily in {{PRIMARY_COLOR}}. \
-Overall art style: {{ART_STYLE}}.
+Face: {{FACE_SHAPE}}, {{EYE_SHAPE}}, {{EYE_COLOR}} eyes, {{EYEBROWS}}, {{NOSE}}, {{MOUTH}}, {{SKIN}} skin tone.
+Hair: {{HAIR_STYLE}}, {{HAIR_LENGTH}}, {{HAIR_COLOR}}, {{BANGS}}.
+Body: {{HEIGHT}}, {{BODY_TYPE}} build, {{SHOULDER_WIDTH}} shoulders, {{HAND_SIZE}} hands, {{LEG_LENGTH}} legs.
+Outfit: {{TOP}}, {{BOTTOM}}, {{SHOES}}, {{ACCESSORIES}}.
+Color palette: primary {{PRIMARY_COLOR}}, secondary {{SECONDARY_COLOR}}, accent {{ACCENT_COLOR}}.
+Art style: {{ART_STYLE}}.
 
-## Consistency Instructions
+## CONSISTENCY RULES
+The exact same character in every panel.
+Identical facial proportions.
+Identical hairstyle and hairline.
+Identical clothing design and accessory placement.
+Identical body proportions and color palette.
+Same age, same ethnicity, same eye shape, same skin tone.
+No redesign. No variation. Maintain character identity.
 
-This character must look identical across every panel: same face shape, same eye color, \
-same hairstyle, same build, same outfit and color palette, same art style. Do not introduce \
-variation in these attributes between panels. Treat this description as a fixed identity, \
-not a suggestion.
+Always preserve:
+facial structure, eye distance, eye size, nose shape, mouth shape, jaw line,
+hairstyle, hairline, body proportions, clothing design, accessory placement, color palette.
+Never change character identity.
 
-## Model Sheet Instructions
-
-Generate a character reference sheet (model sheet / turnaround) showing the character from \
-6 angles: front view, 3/4 front view, side view, back view, 3/4 back view, and a close-up \
-portrait. Neutral standing pose (T-pose or A-pose), arms relaxed, no dynamic action. Plain \
-white background, even studio lighting, no shadows on the background. Consistent scale and \
-eye-line across all views. Clean line art, character sheet layout, no text or labels.
+## MODEL SHEET
+Character turnaround reference sheet.
+Front view, left side view, back view, right side view, three-quarter view.
+Neutral pose. Arms relaxed. Legs shoulder width apart.
+Orthographic layout. Clean white background.
+Concept art. Character sheet. Model sheet.
+Ultra detailed. Professional animation reference.
 """
 
 CHARACTER_BIBLE_TEMPLATES: dict[str, str] = {
