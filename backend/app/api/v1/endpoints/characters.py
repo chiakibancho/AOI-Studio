@@ -223,8 +223,12 @@ async def delete_character(
         image_path = MEDIA_ROOT / character.sheet_image_path
         try:
             os.remove(image_path)
-        except FileNotFoundError:
-            pass
+        except OSError:
+            # ファイルが既に存在しない、権限がない等の理由でファイル削除に失敗しても、
+            # キャラクター自体の削除は続行する（画像ファイルの状態はDB削除を妨げない）。
+            logger.warning(
+                "delete_character: failed to remove sheet image file %s", image_path, exc_info=True
+            )
 
     await db.delete(character)
     await db.flush()

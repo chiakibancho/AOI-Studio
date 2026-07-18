@@ -298,6 +298,33 @@ async def test_delete_without_sheet_image_does_not_error(auth_client, project_id
     assert resp.status_code == 204
 
 
+async def test_delete_succeeds_even_if_file_removal_raises_os_error(
+    auth_client, project_id, monkeypatch
+):
+    """権限エラー等、FileNotFoundError以外のOSErrorでもキャラクター削除自体は成功すること。"""
+    monkeypatch.setattr(settings, "TOGETHER_API_KEY", "fake-key")
+    monkeypatch.setattr(
+        together_ai_service,
+        "generate_character_sheet_image",
+        AsyncMock(return_value=FAKE_PNG_BYTES),
+    )
+    character = await _create_character(auth_client, project_id)
+    await auth_client.post(f"/api/v1/characters/{character['id']}/generate")
+
+    def raise_permission_error(path):
+        raise PermissionError("simulated permission denied")
+
+    import app.api.v1.endpoints.characters as characters_module
+
+    monkeypatch.setattr(characters_module.os, "remove", raise_permission_error)
+
+    resp = await auth_client.delete(f"/api/v1/characters/{character['id']}")
+    assert resp.status_code == 204
+
+    resp = await auth_client.get(f"/api/v1/characters/{character['id']}")
+    assert resp.status_code == 404
+
+
 async def test_delete_other_user_character_returns_404(client, auth_client, project_id):
     character = await _create_character(auth_client, project_id)
 
