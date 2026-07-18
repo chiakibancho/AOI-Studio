@@ -1,7 +1,7 @@
 import asyncio
 from unittest.mock import AsyncMock
 
-from app.core.config import settings
+from app.core.config import MEDIA_ROOT, settings
 from app.services import together_ai_service
 from app.services.together_ai_service import ImageGenerationError
 
@@ -194,4 +194,119 @@ async def test_character_not_visible_to_other_user(client, auth_client, project_
     client.headers["Authorization"] = f"Bearer {other_token}"
 
     resp = await client.get(f"/api/v1/characters/{character['id']}")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# update (rename)
+# ---------------------------------------------------------------------------
+
+
+async def test_update_renames_character(auth_client, project_id):
+    character = await _create_character(auth_client, project_id, name="Old Name")
+
+    resp = await auth_client.patch(
+        f"/api/v1/characters/{character['id']}", json={"name": "New Name"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "New Name"
+    # 他フィールドは変更されない
+    assert body["prompt"] == character["prompt"]
+    assert body["status"] == character["status"]
+
+
+async def test_update_empty_name_returns_422(auth_client, project_id):
+    character = await _create_character(auth_client, project_id)
+
+    resp = await auth_client.patch(f"/api/v1/characters/{character['id']}", json={"name": ""})
+    assert resp.status_code == 422
+
+
+async def test_update_other_user_character_returns_404(client, auth_client, project_id):
+    character = await _create_character(auth_client, project_id)
+
+    resp = await client.post(
+        "/api/v1/auth/signup",
+        json={"email": "other-user-update@example.com", "password": "testpass123", "name": "Other"},
+    )
+    other_token = resp.json()["access_token"]
+    client.headers["Authorization"] = f"Bearer {other_token}"
+
+    resp = await client.patch(f"/api/v1/characters/{character['id']}", json={"name": "Hijacked"})
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# delete
+# ---------------------------------------------------------------------------
+
+
+async def test_delete_removes_character(auth_client, project_id):
+    character = await _create_character(auth_client, project_id)
+
+    resp = await auth_client.delete(f"/api/v1/characters/{character['id']}")
+    assert resp.status_code == 204
+
+    resp = await auth_client.get(f"/api/v1/characters/{character['id']}")
+    assert resp.status_code == 404
+
+    resp = await auth_client.get(f"/api/v1/projects/{project_id}/characters")
+    assert resp.json() == []
+
+
+async def test_delete_approved_character_succeeds(auth_client, project_id, monkeypatch):
+    monkeypatch.setattr(settings, "TOGETHER_API_KEY", "fake-key")
+    monkeypatch.setattr(
+        together_ai_service,
+        "generate_character_sheet_image",
+        AsyncMock(return_value=FAKE_PNG_BYTES),
+    )
+    character = await _create_character(auth_client, project_id)
+    await auth_client.post(f"/api/v1/characters/{character['id']}/generate")
+    await auth_client.post(f"/api/v1/characters/{character['id']}/approve")
+
+    resp = await auth_client.delete(f"/api/v1/characters/{character['id']}")
+    assert resp.status_code == 204
+
+
+async def test_delete_removes_sheet_image_file(auth_client, project_id, monkeypatch):
+    monkeypatch.setattr(settings, "TOGETHER_API_KEY", "fake-key")
+    monkeypatch.setattr(
+        together_ai_service,
+        "generate_character_sheet_image",
+        AsyncMock(return_value=FAKE_PNG_BYTES),
+    )
+    character = await _create_character(auth_client, project_id)
+    await auth_client.post(f"/api/v1/characters/{character['id']}/generate")
+
+    resp = await auth_client.get(f"/api/v1/characters/{character['id']}")
+    sheet_image_path = resp.json()["sheet_image_path"]
+    image_path = MEDIA_ROOT / sheet_image_path
+    assert image_path.is_file()
+
+    resp = await auth_client.delete(f"/api/v1/characters/{character['id']}")
+    assert resp.status_code == 204
+    assert not image_path.exists()
+
+
+async def test_delete_without_sheet_image_does_not_error(auth_client, project_id):
+    character = await _create_character(auth_client, project_id)
+    assert character["sheet_image_path"] is None
+
+    resp = await auth_client.delete(f"/api/v1/characters/{character['id']}")
+    assert resp.status_code == 204
+
+
+async def test_delete_other_user_character_returns_404(client, auth_client, project_id):
+    character = await _create_character(auth_client, project_id)
+
+    resp = await client.post(
+        "/api/v1/auth/signup",
+        json={"email": "other-user-delete@example.com", "password": "testpass123", "name": "Other"},
+    )
+    other_token = resp.json()["access_token"]
+    client.headers["Authorization"] = f"Bearer {other_token}"
+
+    resp = await client.delete(f"/api/v1/characters/{character['id']}")
     assert resp.status_code == 404

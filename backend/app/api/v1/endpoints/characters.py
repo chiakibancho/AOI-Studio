@@ -1,5 +1,6 @@
 import logging
 import mimetypes
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -13,7 +14,7 @@ from app.core.security import get_current_user
 from app.api.v1.endpoints._common import _get_project_for_user
 from app.models.character import Character, CharacterStatus
 from app.models.user import User
-from app.schemas.character import CharacterCreateRequest, CharacterResponse
+from app.schemas.character import CharacterCreateRequest, CharacterResponse, CharacterUpdateRequest
 from app.services import together_ai_service
 
 router = APIRouter()
@@ -190,6 +191,43 @@ async def get_character_sheet_image(
 
     media_type = mimetypes.guess_type(image_path.name)[0] or "application/octet-stream"
     return FileResponse(image_path, media_type=media_type)
+
+
+@standalone_router.patch("/{character_id}", response_model=CharacterResponse)
+async def update_character(
+    character_id: str,
+    request: CharacterUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """キャラクター名を変更する。nameのみ更新し、他のフィールドは変更しない。"""
+    character = await _get_character_for_user(character_id, current_user, db)
+
+    character.name = request.name
+
+    await db.flush()
+    await db.refresh(character)
+    return CharacterResponse.model_validate(character)
+
+
+@standalone_router.delete("/{character_id}", status_code=204)
+async def delete_character(
+    character_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """キャラクターを削除する（承認済みでも削除可）。モデルシート画像があればファイルも削除する。"""
+    character = await _get_character_for_user(character_id, current_user, db)
+
+    if character.sheet_image_path:
+        image_path = MEDIA_ROOT / character.sheet_image_path
+        try:
+            os.remove(image_path)
+        except FileNotFoundError:
+            pass
+
+    await db.delete(character)
+    await db.flush()
 
 
 @standalone_router.post("/{character_id}/approve", response_model=CharacterResponse)

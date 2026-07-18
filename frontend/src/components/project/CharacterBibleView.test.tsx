@@ -31,6 +31,8 @@ function renderView(
       onCreate={vi.fn()}
       onGenerate={vi.fn()}
       onApprove={vi.fn()}
+      onDelete={vi.fn()}
+      onRename={vi.fn()}
       isCreating={false}
       createError={null}
       actionError={null}
@@ -193,5 +195,61 @@ describe('CharacterBibleView', () => {
     })
 
     expect(screen.getByText('Together AI エラー: 500')).toBeInTheDocument()
+  })
+
+  it('calls onDelete after confirming the delete dialog', () => {
+    const onDelete = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderView({ characters: [baseCharacter], onDelete })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aliceを削除' }))
+
+    expect(window.confirm).toHaveBeenCalled()
+    expect(onDelete).toHaveBeenCalledWith('c1')
+  })
+
+  it('does not call onDelete when the confirm dialog is cancelled', () => {
+    const onDelete = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderView({ characters: [baseCharacter], onDelete })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aliceを削除' }))
+
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('switches the name to an editable input on click and calls onRename on Enter', () => {
+    const onRename = vi.fn()
+    renderView({ characters: [baseCharacter], onRename })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alice' }))
+    const input = screen.getByLabelText('キャラクター名を編集')
+    fireEvent.change(input, { target: { value: 'Bob' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onRename).toHaveBeenCalledWith('c1', 'Bob')
+  })
+
+  it('calls onRename on blur after editing the name', () => {
+    const onRename = vi.fn()
+    renderView({ characters: [baseCharacter], onRename })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alice' }))
+    const input = screen.getByLabelText('キャラクター名を編集')
+    fireEvent.change(input, { target: { value: 'Bob' } })
+    fireEvent.blur(input)
+
+    expect(onRename).toHaveBeenCalledWith('c1', 'Bob')
+  })
+
+  it('does not call onRename when the name is unchanged', () => {
+    const onRename = vi.fn()
+    renderView({ characters: [baseCharacter], onRename })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alice' }))
+    const input = screen.getByLabelText('キャラクター名を編集')
+    fireEvent.blur(input)
+
+    expect(onRename).not.toHaveBeenCalled()
   })
 })

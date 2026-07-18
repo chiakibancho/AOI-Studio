@@ -10,6 +10,8 @@ interface CharacterBibleViewProps {
   onCreate: (name: string, prompt: string) => void
   onGenerate: (characterId: string) => void
   onApprove: (characterId: string) => void
+  onDelete: (characterId: string) => void
+  onRename: (characterId: string, name: string) => void
   isCreating: boolean
   createError: string | null
   actionError: string | null
@@ -87,28 +89,105 @@ function CharacterSheetImage({ character }: { character: Character }) {
   )
 }
 
+function EditableCharacterName({
+  name,
+  onRename,
+}: {
+  name: string
+  onRename: (name: string) => void
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [value, setValue] = useState(name)
+
+  function commit() {
+    const trimmed = value.trim()
+    setIsEditing(false)
+    if (trimmed && trimmed !== name) {
+      onRename(trimmed)
+    } else {
+      setValue(name)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <input
+        type="text"
+        value={value}
+        autoFocus
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          } else if (e.key === 'Escape') {
+            setValue(name)
+            setIsEditing(false)
+          }
+        }}
+        aria-label="キャラクター名を編集"
+        className="font-semibold text-sm text-text-primary bg-surface border border-border rounded px-2 py-0.5 flex-1 min-w-0"
+      />
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setValue(name)
+        setIsEditing(true)
+      }}
+      className="font-semibold text-text-primary text-left hover:underline"
+    >
+      {name}
+    </button>
+  )
+}
+
 function CharacterCard({
   character,
   onGenerate,
   onApprove,
+  onDelete,
+  onRename,
   isBusy,
 }: {
   character: Character
   onGenerate: () => void
   onApprove: () => void
+  onDelete: () => void
+  onRename: (name: string) => void
   isBusy: boolean
 }) {
   const isGenerating = character.status === 'generating'
   const isApproved = character.status === 'approved'
   const canGenerate = character.status !== 'approved' && character.status !== 'generating'
 
+  function handleDeleteClick() {
+    if (window.confirm(`「${character.name}」を削除しますか？この操作は取り消せません。`)) {
+      onDelete()
+    }
+  }
+
   return (
     <div className="rounded-xl border border-border bg-background p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-text-primary">{character.name}</span>
-        <span className="px-2 py-0.5 rounded-md bg-surface border border-border text-xs text-text-secondary">
-          {STATUS_LABELS[character.status]}
-        </span>
+        <EditableCharacterName name={character.name} onRename={onRename} />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="px-2 py-0.5 rounded-md bg-surface border border-border text-xs text-text-secondary">
+            {STATUS_LABELS[character.status]}
+          </span>
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            aria-label={`${character.name}を削除`}
+            className="text-xs text-text-secondary hover:text-red-400"
+          >
+            削除
+          </button>
+        </div>
       </div>
 
       {isGenerating && (
@@ -154,6 +233,8 @@ export default function CharacterBibleView({
   onCreate,
   onGenerate,
   onApprove,
+  onDelete,
+  onRename,
   isCreating,
   createError,
   actionError,
@@ -277,6 +358,8 @@ export default function CharacterBibleView({
               character={character}
               onGenerate={() => onGenerate(character.id)}
               onApprove={() => onApprove(character.id)}
+              onDelete={() => onDelete(character.id)}
+              onRename={(name) => onRename(character.id, name)}
               isBusy={pendingCharacterId === character.id}
             />
           ))}

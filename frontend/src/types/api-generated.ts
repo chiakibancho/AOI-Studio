@@ -585,10 +585,18 @@ export interface paths {
         get: operations["get_character_api_v1_characters__character_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Character
+         * @description キャラクターを削除する（承認済みでも削除可）。モデルシート画像があればファイルも削除する。
+         */
+        delete: operations["delete_character_api_v1_characters__character_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Character
+         * @description キャラクター名を変更する。nameのみ更新し、他のフィールドは変更しない。
+         */
+        patch: operations["update_character_api_v1_characters__character_id__patch"];
         trace?: never;
     };
     "/api/v1/characters/{character_id}/generate": {
@@ -706,6 +714,11 @@ export interface components {
          * @enum {string}
          */
         CharacterStatus: "draft" | "generating" | "generated" | "failed" | "approved";
+        /** CharacterUpdateRequest */
+        CharacterUpdateRequest: {
+            /** Name */
+            name: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2202,6 +2215,70 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_character_api_v1_characters__character_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                character_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_character_api_v1_characters__character_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                character_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CharacterUpdateRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

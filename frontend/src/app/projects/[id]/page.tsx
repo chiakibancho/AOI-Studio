@@ -499,6 +499,35 @@ export default function ProjectDetailPage() {
     },
   })
 
+  // Rename character mutation
+  const renameCharacterMutation = useMutation<Character, Error, { characterId: string; name: string }>({
+    mutationFn: async ({ characterId, name }) => {
+      const res = await api.patch<Character>(`/api/v1/characters/${characterId}`, { name })
+      return res.data
+    },
+    onSuccess: () => {
+      setCharacterActionError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] })
+    },
+    onError: () => {
+      setCharacterActionError('名前の変更に失敗しました。もう一度お試しください。')
+    },
+  })
+
+  // Delete character mutation
+  const deleteCharacterMutation = useMutation<void, Error, string>({
+    mutationFn: async (characterId) => {
+      await api.delete(`/api/v1/characters/${characterId}`)
+    },
+    onSuccess: () => {
+      setCharacterActionError(null)
+      queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] })
+    },
+    onError: () => {
+      setCharacterActionError('削除に失敗しました。もう一度お試しください。')
+    },
+  })
+
   function handleCreateCharacter(name: string, prompt: string) {
     setCharacterCreateError(null)
     createCharacterMutation.mutate({ name, prompt })
@@ -514,6 +543,16 @@ export default function ProjectDetailPage() {
     setCharacterActionError(null)
     setPendingCharacterId(characterId)
     approveCharacterMutation.mutate(characterId)
+  }
+
+  function handleDeleteCharacter(characterId: string) {
+    setCharacterActionError(null)
+    deleteCharacterMutation.mutate(characterId)
+  }
+
+  function handleRenameCharacter(characterId: string, name: string) {
+    setCharacterActionError(null)
+    renameCharacterMutation.mutate({ characterId, name })
   }
 
   function handleSpecSaved(savedSpec: VideoSpec) {
@@ -692,6 +731,8 @@ export default function ProjectDetailPage() {
                 onCreate={handleCreateCharacter}
                 onGenerate={handleGenerateCharacter}
                 onApprove={handleApproveCharacter}
+                onDelete={handleDeleteCharacter}
+                onRename={handleRenameCharacter}
                 isCreating={createCharacterMutation.isPending}
                 createError={characterCreateError}
                 actionError={characterActionError}
