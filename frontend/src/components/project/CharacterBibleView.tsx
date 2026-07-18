@@ -1,6 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Character } from '@/types'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
@@ -12,7 +22,10 @@ interface CharacterBibleViewProps {
   onApprove: (characterId: string) => void
   onDelete: (characterId: string) => void
   onRename: (characterId: string, name: string) => void
+  onReorder: (characterIds: string[]) => void
+  onDownloadZip: () => void
   isCreating: boolean
+  isDownloadingZip: boolean
   createError: string | null
   actionError: string | null
   pendingCharacterId: string | null
@@ -153,6 +166,7 @@ function CharacterCard({
   onDelete,
   onRename,
   isBusy,
+  dragHandle,
 }: {
   character: Character
   onGenerate: () => void
@@ -160,6 +174,7 @@ function CharacterCard({
   onDelete: () => void
   onRename: (name: string) => void
   isBusy: boolean
+  dragHandle?: React.ReactNode
 }) {
   const isGenerating = character.status === 'generating'
   const isApproved = character.status === 'approved'
@@ -174,7 +189,10 @@ function CharacterCard({
   return (
     <div className="rounded-xl border border-border bg-background p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <EditableCharacterName name={character.name} onRename={onRename} />
+        <div className="flex items-center gap-2 min-w-0">
+          {dragHandle}
+          <EditableCharacterName name={character.name} onRename={onRename} />
+        </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="px-2 py-0.5 rounded-md bg-surface border border-border text-xs text-text-secondary">
             {STATUS_LABELS[character.status]}
@@ -228,6 +246,44 @@ function CharacterCard({
   )
 }
 
+function SortableCharacterCard(props: {
+  character: Character
+  onGenerate: () => void
+  onApprove: () => void
+  onDelete: () => void
+  onRename: (name: string) => void
+  isBusy: boolean
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.character.id,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <CharacterCard
+        {...props}
+        dragHandle={
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`${props.character.name}をドラッグして並び替え`}
+            className="cursor-grab text-text-secondary hover:text-text-primary flex-shrink-0 touch-none"
+          >
+            ⠿
+          </button>
+        }
+      />
+    </div>
+  )
+}
+
 export default function CharacterBibleView({
   characters,
   onCreate,
@@ -235,7 +291,10 @@ export default function CharacterBibleView({
   onApprove,
   onDelete,
   onRename,
+  onReorder,
+  onDownloadZip,
   isCreating,
+  isDownloadingZip,
   createError,
   actionError,
   pendingCharacterId,
@@ -246,6 +305,9 @@ export default function CharacterBibleView({
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [advanced, setAdvanced] = useState<AdvancedFields>(EMPTY_ADVANCED)
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const hasApprovedCharacter = characters.some((c) => c.status === 'approved')
+
   function handleAdvancedChange(field: keyof AdvancedFields, value: string) {
     setAdvanced((prev) => ({ ...prev, [field]: value }))
   }
@@ -255,13 +317,36 @@ export default function CharacterBibleView({
     onCreate(name, combinePrompt(prompt, advanced))
   }
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = characters.findIndex((c) => c.id === active.id)
+    const newIndex = characters.findIndex((c) => c.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = arrayMove(characters, oldIndex, newIndex)
+    onReorder(reordered.map((c) => c.id))
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-text-primary">キャラクター</h2>
-        <Button variant="secondary" size="sm" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? '閉じる' : '+ 新しいキャラクター'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onDownloadZip}
+            disabled={!hasApprovedCharacter}
+            isLoading={isDownloadingZip}
+          >
+            ZIPでダウンロード
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? '閉じる' : '+ 新しいキャラクター'}
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -351,19 +436,23 @@ export default function CharacterBibleView({
       )}
 
       {characters.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {characters.map((character) => (
-            <CharacterCard
-              key={character.id}
-              character={character}
-              onGenerate={() => onGenerate(character.id)}
-              onApprove={() => onApprove(character.id)}
-              onDelete={() => onDelete(character.id)}
-              onRename={(name) => onRename(character.id, name)}
-              isBusy={pendingCharacterId === character.id}
-            />
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={characters.map((c) => c.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {characters.map((character) => (
+                <SortableCharacterCard
+                  key={character.id}
+                  character={character}
+                  onGenerate={() => onGenerate(character.id)}
+                  onApprove={() => onApprove(character.id)}
+                  onDelete={() => onDelete(character.id)}
+                  onRename={(name) => onRename(character.id, name)}
+                  isBusy={pendingCharacterId === character.id}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
     </div>
   )

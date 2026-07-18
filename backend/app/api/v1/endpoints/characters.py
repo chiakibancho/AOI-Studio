@@ -1,11 +1,13 @@
+import io
 import logging
 import mimetypes
 import os
+import zipfile
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from fastapi.responses import FileResponse
-from sqlalchemy import select
+from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import MEDIA_ROOT, settings
@@ -14,7 +16,12 @@ from app.core.security import get_current_user
 from app.api.v1.endpoints._common import _get_project_for_user
 from app.models.character import Character, CharacterStatus
 from app.models.user import User
-from app.schemas.character import CharacterCreateRequest, CharacterResponse, CharacterUpdateRequest
+from app.schemas.character import (
+    CharacterCreateRequest,
+    CharacterReorderRequest,
+    CharacterResponse,
+    CharacterUpdateRequest,
+)
 from app.services import together_ai_service
 
 router = APIRouter()
@@ -51,14 +58,25 @@ async def create_character(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """キャラクターを作成する（name + prompt）。prompt はFLUXにそのまま渡す全文テキスト。"""
+    """キャラクターを作成する（name + prompt）。prompt はFLUXにそのまま渡す全文テキスト。
+
+    sort_order は既存キャラクターの最大値+1（末尾に追加）とする。
+    """
     project = await _get_project_for_user(project_id, current_user, db)
+
+    max_order_result = await db.execute(
+        select(func.coalesce(func.max(Character.sort_order), -1)).where(
+            Character.project_id == project.id
+        )
+    )
+    next_sort_order = max_order_result.scalar_one() + 1
 
     character = Character(
         project_id=project.id,
         name=request.name,
         prompt=request.prompt,
         status=CharacterStatus.draft,
+        sort_order=next_sort_order,
     )
     db.add(character)
     await db.flush()
@@ -72,14 +90,88 @@ async def list_characters(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """プロジェクトのキャラクター一覧を作成日時の昇順で返す。"""
+    """プロジェクトのキャラクター一覧を表示順（sort_order）で返す。"""
     project = await _get_project_for_user(project_id, current_user, db)
 
     result = await db.execute(
-        select(Character).where(Character.project_id == project.id).order_by(Character.created_at)
+        select(Character).where(Character.project_id == project.id).order_by(Character.sort_order)
     )
     characters = result.scalars().all()
     return [CharacterResponse.model_validate(c) for c in characters]
+
+
+@router.patch("/characters/reorder", response_model=list[CharacterResponse])
+async def reorder_characters(
+    project_id: str,
+    request: CharacterReorderRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """character_ids の並び順（indexそのまま）を sort_order として保存する。"""
+    project = await _get_project_for_user(project_id, current_user, db)
+
+    result = await db.execute(select(Character).where(Character.project_id == project.id))
+    characters_by_id = {c.id: c for c in result.scalars().all()}
+
+    for character_id in request.character_ids:
+        if character_id not in characters_by_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Character not found: {character_id}",
+            )
+
+    for index, character_id in enumerate(request.character_ids):
+        characters_by_id[character_id].sort_order = index
+
+    await db.flush()
+
+    result = await db.execute(
+        select(Character).where(Character.project_id == project.id).order_by(Character.sort_order)
+    )
+    return [CharacterResponse.model_validate(c) for c in result.scalars().all()]
+
+
+@router.get("/characters/export-zip")
+async def export_characters_zip(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """承認済みキャラクターのモデルシート画像を sort_order 順にZIPへまとめてダウンロードする。
+
+    承認済みが0件の場合は404。画像ファイルが見つからないキャラクターはスキップする。
+    """
+    project = await _get_project_for_user(project_id, current_user, db)
+
+    result = await db.execute(
+        select(Character)
+        .where(Character.project_id == project.id, Character.status == CharacterStatus.approved)
+        .order_by(Character.sort_order)
+    )
+    approved_characters = result.scalars().all()
+    if not approved_characters:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="承認済みのキャラクターがありません。",
+        )
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for index, character in enumerate(approved_characters, start=1):
+            if not character.sheet_image_path:
+                continue
+            image_path = MEDIA_ROOT / character.sheet_image_path
+            if not image_path.is_file():
+                continue
+            ext = image_path.suffix or ".jpg"
+            zf.write(image_path, arcname=f"{index:02d}_{character.name}{ext}")
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="characters.zip"'},
+    )
 
 
 # ---------------------------------------------------------------------------

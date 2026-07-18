@@ -51,6 +51,7 @@ export default function ProjectDetailPage() {
   const [characterCreateError, setCharacterCreateError] = useState<string | null>(null)
   const [characterActionError, setCharacterActionError] = useState<string | null>(null)
   const [pendingCharacterId, setPendingCharacterId] = useState<string | null>(null)
+  const [isDownloadingCharactersZip, setIsDownloadingCharactersZip] = useState(false)
   const [specSaved, setSpecSaved] = useState(false)
   const [specDraftError, setSpecDraftError] = useState<string | null>(null)
   const [specEntryMode, setSpecEntryMode] = useState<'ai' | 'manual'>('ai')
@@ -558,6 +559,73 @@ export default function ProjectDetailPage() {
     renameCharacterMutation.mutate({ characterId, name })
   }
 
+  // Reorder characters mutation (drag & drop)
+  const reorderCharactersMutation = useMutation<
+    Character[],
+    Error,
+    string[],
+    { previous?: Character[] }
+  >({
+    mutationFn: async (characterIds) => {
+      const res = await api.patch<Character[]>(
+        `/api/v1/projects/${projectId}/characters/reorder`,
+        { character_ids: characterIds }
+      )
+      return res.data
+    },
+    onMutate: async (characterIds) => {
+      await queryClient.cancelQueries({ queryKey: ['project-characters', projectId] })
+      const previous = queryClient.getQueryData<Character[]>(['project-characters', projectId])
+      if (previous) {
+        const byId = new Map(previous.map((c) => [c.id, c]))
+        const reordered = characterIds
+          .map((id) => byId.get(id))
+          .filter((c): c is Character => c !== undefined)
+        queryClient.setQueryData(['project-characters', projectId], reordered)
+      }
+      return { previous }
+    },
+    onSuccess: (data) => {
+      setCharacterActionError(null)
+      queryClient.setQueryData(['project-characters', projectId], data)
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['project-characters', projectId], context.previous)
+      }
+      setCharacterActionError('並び替えに失敗しました。もう一度お試しください。')
+    },
+  })
+
+  function handleReorderCharacters(characterIds: string[]) {
+    setCharacterActionError(null)
+    reorderCharactersMutation.mutate(characterIds)
+  }
+
+  function handleDownloadCharactersZip() {
+    setCharacterActionError(null)
+    setIsDownloadingCharactersZip(true)
+    api
+      .get(`/api/v1/projects/${projectId}/characters/export-zip`, { responseType: 'blob' })
+      .then((res) => {
+        const blob = new Blob([res.data], { type: 'application/zip' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${project?.title ?? 'characters'}_characters.zip`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      })
+      .catch(() => {
+        setCharacterActionError('ZIPダウンロードに失敗しました。承認済みのキャラクターがあるか確認してください。')
+      })
+      .finally(() => {
+        setIsDownloadingCharactersZip(false)
+      })
+  }
+
   function handleSpecSaved(savedSpec: VideoSpec) {
     queryClient.setQueryData(['project-spec', projectId], savedSpec)
     setSpecSaved(true)
@@ -736,7 +804,10 @@ export default function ProjectDetailPage() {
                 onApprove={handleApproveCharacter}
                 onDelete={handleDeleteCharacter}
                 onRename={handleRenameCharacter}
+                onReorder={handleReorderCharacters}
+                onDownloadZip={handleDownloadCharactersZip}
                 isCreating={createCharacterMutation.isPending}
+                isDownloadingZip={isDownloadingCharactersZip}
                 createError={characterCreateError}
                 actionError={characterActionError}
                 pendingCharacterId={pendingCharacterId}

@@ -17,6 +17,7 @@ const baseCharacter: Character = {
   sheet_image_path: null,
   status: 'draft',
   error_message: null,
+  sort_order: 0,
   approved_at: null,
   created_at: '2026-07-16T00:00:00Z',
   updated_at: '2026-07-16T00:00:00Z',
@@ -33,7 +34,10 @@ function renderView(
       onApprove={vi.fn()}
       onDelete={vi.fn()}
       onRename={vi.fn()}
+      onReorder={vi.fn()}
+      onDownloadZip={vi.fn()}
       isCreating={false}
+      isDownloadingZip={false}
       createError={null}
       actionError={null}
       pendingCharacterId={null}
@@ -251,5 +255,30 @@ describe('CharacterBibleView', () => {
     fireEvent.blur(input)
 
     expect(onRename).not.toHaveBeenCalled()
+  })
+
+  it('disables the ZIP download button when there are no approved characters', () => {
+    renderView({ characters: [baseCharacter] })
+
+    expect(screen.getByRole('button', { name: 'ZIPでダウンロード' })).toBeDisabled()
+  })
+
+  it('enables the ZIP download button and calls onDownloadZip when at least one character is approved', () => {
+    const onDownloadZip = vi.fn()
+    renderView({ characters: [{ ...baseCharacter, status: 'approved' }], onDownloadZip })
+
+    const button = screen.getByRole('button', { name: 'ZIPでダウンロード' })
+    expect(button).not.toBeDisabled()
+    fireEvent.click(button)
+    expect(onDownloadZip).toHaveBeenCalled()
+  })
+
+  it('renders a drag handle for each character without crashing', () => {
+    renderView({
+      characters: [baseCharacter, { ...baseCharacter, id: 'c2', name: 'Bob', sort_order: 1 }],
+    })
+
+    expect(screen.getByLabelText('Aliceをドラッグして並び替え')).toBeInTheDocument()
+    expect(screen.getByLabelText('Bobをドラッグして並び替え')).toBeInTheDocument()
   })
 })

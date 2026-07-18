@@ -337,3 +337,114 @@ async def test_delete_other_user_character_returns_404(client, auth_client, proj
 
     resp = await client.delete(f"/api/v1/characters/{character['id']}")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# reorder
+# ---------------------------------------------------------------------------
+
+
+async def test_reorder_updates_sort_order(auth_client, project_id):
+    a = await _create_character(auth_client, project_id, name="A")
+    b = await _create_character(auth_client, project_id, name="B")
+    c = await _create_character(auth_client, project_id, name="C")
+
+    resp = await auth_client.patch(
+        f"/api/v1/projects/{project_id}/characters/reorder",
+        json={"character_ids": [c["id"], a["id"], b["id"]]},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [ch["name"] for ch in body] == ["C", "A", "B"]
+    assert [ch["sort_order"] for ch in body] == [0, 1, 2]
+
+    resp = await auth_client.get(f"/api/v1/projects/{project_id}/characters")
+    assert [ch["name"] for ch in resp.json()] == ["C", "A", "B"]
+
+
+async def test_reorder_unknown_character_id_returns_404(auth_client, project_id):
+    a = await _create_character(auth_client, project_id, name="A")
+
+    resp = await auth_client.patch(
+        f"/api/v1/projects/{project_id}/characters/reorder",
+        json={"character_ids": [a["id"], "nonexistent-id"]},
+    )
+    assert resp.status_code == 404
+
+
+async def test_reorder_other_user_project_returns_404(client, auth_client, project_id):
+    a = await _create_character(auth_client, project_id, name="A")
+
+    resp = await client.post(
+        "/api/v1/auth/signup",
+        json={"email": "other-user-reorder@example.com", "password": "testpass123", "name": "Other"},
+    )
+    other_token = resp.json()["access_token"]
+    client.headers["Authorization"] = f"Bearer {other_token}"
+
+    resp = await client.patch(
+        f"/api/v1/projects/{project_id}/characters/reorder",
+        json={"character_ids": [a["id"]]},
+    )
+    assert resp.status_code == 404
+
+
+async def test_new_character_sort_order_appends_to_end(auth_client, project_id):
+    a = await _create_character(auth_client, project_id, name="A")
+    b = await _create_character(auth_client, project_id, name="B")
+    assert a["sort_order"] == 0
+    assert b["sort_order"] == 1
+
+
+# ---------------------------------------------------------------------------
+# export-zip
+# ---------------------------------------------------------------------------
+
+
+async def _create_generated_and_approved_character(auth_client, project_id, monkeypatch, name):
+    monkeypatch.setattr(settings, "TOGETHER_API_KEY", "fake-key")
+    monkeypatch.setattr(
+        together_ai_service,
+        "generate_character_sheet_image",
+        AsyncMock(return_value=FAKE_PNG_BYTES),
+    )
+    character = await _create_character(auth_client, project_id, name=name)
+    await auth_client.post(f"/api/v1/characters/{character['id']}/generate")
+    resp = await auth_client.post(f"/api/v1/characters/{character['id']}/approve")
+    assert resp.status_code == 200
+    return resp.json()
+
+
+async def test_export_zip_returns_404_when_no_approved_characters(auth_client, project_id):
+    await _create_character(auth_client, project_id)
+
+    resp = await auth_client.get(f"/api/v1/projects/{project_id}/characters/export-zip")
+    assert resp.status_code == 404
+
+
+async def test_export_zip_contains_approved_character_images_in_sort_order(
+    auth_client, project_id, monkeypatch
+):
+    import io
+    import zipfile
+
+    first = await _create_generated_and_approved_character(auth_client, project_id, monkeypatch, "Alice")
+    second = await _create_generated_and_approved_character(auth_client, project_id, monkeypatch, "Bob")
+    # 未承認のキャラクターはZIPに含まれない
+    await _create_character(auth_client, project_id, name="Draft Character")
+
+    resp = await auth_client.patch(
+        f"/api/v1/projects/{project_id}/characters/reorder",
+        json={"character_ids": [second["id"], first["id"]]},
+    )
+    assert resp.status_code == 200
+
+    resp = await auth_client.get(f"/api/v1/projects/{project_id}/characters/export-zip")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+
+    zf = zipfile.ZipFile(io.BytesIO(resp.content))
+    names = sorted(zf.namelist())
+    # FAKE_PNG_BYTES は実際にPNGシグネチャを持つため .png として保存される
+    assert names == ["01_Bob.png", "02_Alice.png"]
+    assert zf.read("01_Bob.png") == FAKE_PNG_BYTES

@@ -559,15 +559,59 @@ export interface paths {
         };
         /**
          * List Characters
-         * @description プロジェクトのキャラクター一覧を作成日時の昇順で返す。
+         * @description プロジェクトのキャラクター一覧を表示順（sort_order）で返す。
          */
         get: operations["list_characters_api_v1_projects__project_id__characters_get"];
         put?: never;
         /**
          * Create Character
          * @description キャラクターを作成する（name + prompt）。prompt はFLUXにそのまま渡す全文テキスト。
+         *
+         *     sort_order は既存キャラクターの最大値+1（末尾に追加）とする。
          */
         post: operations["create_character_api_v1_projects__project_id__characters_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/characters/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reorder Characters
+         * @description character_ids の並び順（indexそのまま）を sort_order として保存する。
+         */
+        patch: operations["reorder_characters_api_v1_projects__project_id__characters_reorder_patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/characters/export-zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Characters Zip
+         * @description 承認済みキャラクターのモデルシート画像を sort_order 順にZIPへまとめてダウンロードする。
+         *
+         *     承認済みが0件の場合は404。画像ファイルが見つからないキャラクターはスキップする。
+         */
+        get: operations["export_characters_zip_api_v1_projects__project_id__characters_export_zip_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -681,6 +725,11 @@ export interface components {
             /** Prompt */
             prompt: string;
         };
+        /** CharacterReorderRequest */
+        CharacterReorderRequest: {
+            /** Character Ids */
+            character_ids: string[];
+        };
         /** CharacterResponse */
         CharacterResponse: {
             /** Id */
@@ -696,6 +745,8 @@ export interface components {
             status: components["schemas"]["CharacterStatus"];
             /** Error Message */
             error_message: string | null;
+            /** Sort Order */
+            sort_order: number;
             /** Approved At */
             approved_at: string | null;
             /**
@@ -2192,6 +2243,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_characters_api_v1_projects__project_id__characters_reorder_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CharacterReorderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_characters_zip_api_v1_projects__project_id__characters_export_zip_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

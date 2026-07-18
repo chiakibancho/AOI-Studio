@@ -15,6 +15,10 @@ class CharacterUpdateRequest(BaseModel):
     name: str = Field(min_length=1)
 
 
+class CharacterReorderRequest(BaseModel):
+    character_ids: list[str]
+
+
 class CharacterResponse(BaseModel):
     id: str
     project_id: str
@@ -23,6 +27,7 @@ class CharacterResponse(BaseModel):
     sheet_image_path: Optional[str]
     status: CharacterStatus
     error_message: Optional[str]
+    sort_order: int
     approved_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime

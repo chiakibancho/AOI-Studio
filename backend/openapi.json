@@ -1508,7 +1508,7 @@
           "characters"
         ],
         "summary": "Create Character",
-        "description": "キャラクターを作成する（name + prompt）。prompt はFLUXにそのまま渡す全文テキスト。",
+        "description": "キャラクターを作成する（name + prompt）。prompt はFLUXにそのまま渡す全文テキスト。\n\nsort_order は既存キャラクターの最大値+1（末尾に追加）とする。",
         "operationId": "create_character_api_v1_projects__project_id__characters_post",
         "security": [
           {
@@ -1564,7 +1564,7 @@
           "characters"
         ],
         "summary": "List Characters",
-        "description": "プロジェクトのキャラクター一覧を作成日時の昇順で返す。",
+        "description": "プロジェクトのキャラクター一覧を表示順（sort_order）で返す。",
         "operationId": "list_characters_api_v1_projects__project_id__characters_get",
         "security": [
           {
@@ -1594,6 +1594,114 @@
                   },
                   "title": "Response List Characters Api V1 Projects  Project Id  Characters Get"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/characters/reorder": {
+      "patch": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Reorder Characters",
+        "description": "character_ids の並び順（indexそのまま）を sort_order として保存する。",
+        "operationId": "reorder_characters_api_v1_projects__project_id__characters_reorder_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterReorderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterResponse"
+                  },
+                  "title": "Response Reorder Characters Api V1 Projects  Project Id  Characters Reorder Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/characters/export-zip": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Export Characters Zip",
+        "description": "承認済みキャラクターのモデルシート画像を sort_order 順にZIPへまとめてダウンロードする。\n\n承認済みが0件の場合は404。画像ファイルが見つからないキャラクターはスキップする。",
+        "operationId": "export_characters_zip_api_v1_projects__project_id__characters_export_zip_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -1929,6 +2037,22 @@
         ],
         "title": "CharacterCreateRequest"
       },
+      "CharacterReorderRequest": {
+        "properties": {
+          "character_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Character Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character_ids"
+        ],
+        "title": "CharacterReorderRequest"
+      },
       "CharacterResponse": {
         "properties": {
           "id": {
@@ -1972,6 +2096,10 @@
             ],
             "title": "Error Message"
           },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order"
+          },
           "approved_at": {
             "anyOf": [
               {
@@ -2004,6 +2132,7 @@
           "sheet_image_path",
           "status",
           "error_message",
+          "sort_order",
           "approved_at",
           "created_at",
           "updated_at"
