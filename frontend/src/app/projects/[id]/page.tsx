@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import api from '@/lib/api'
+import { getToken } from '@/lib/auth'
 import { useAuthStore } from '@/store/auth'
 import type { Project, VideoSpec, Structure, SpecDraft, SpecFormFields, Storyboard, ShootingList, MusicAnalysis, Character } from '@/types'
 import { VIDEO_TYPE_LABELS, PROJECT_STATUS_LABELS } from '@/types'
@@ -517,7 +518,9 @@ export default function ProjectDetailPage() {
   // Delete character mutation
   const deleteCharacterMutation = useMutation<void, Error, string>({
     mutationFn: async (characterId) => {
-      await api.delete(`/api/v1/characters/${characterId}`)
+      await api.delete(`/api/v1/characters/${characterId}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      })
     },
     onSuccess: () => {
       setCharacterActionError(null)
